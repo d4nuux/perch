@@ -4,7 +4,6 @@ import SwiftUI
 struct MediaPlayer: View {
     @EnvironmentObject var np: NowPlaying
     @ObservedObject private var settings = MediaSettings.shared
-    @StateObject private var scrub = ScrubState()
 
     private var tint: Color {
         guard settings.artworkColor, let c = np.accentColor else { return .white }
@@ -21,11 +20,7 @@ struct MediaPlayer: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(np.title).font(.system(size: 14, weight: .semibold)).lineLimit(1)
                 Text(np.artist).font(.system(size: 12)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
-                SeekBar(fraction: np.duration > 0 ? min(np.position / np.duration, 1) : 0,
-                        tint: tint, enabled: np.canSeek, scrub: scrub) { f in
-                    np.seek(to: f * np.duration)
-                }
-                timeRow
+                MediaProgress(np: np, clock: np.clock, tint: tint)
                 controls
             }
         }
@@ -72,20 +67,6 @@ struct MediaPlayer: View {
         }
         .frame(width: 84, height: 84)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
-    // MARK: Times
-
-    private var timeRow: some View {
-        let pos = scrub.fraction.map { $0 * np.duration } ?? np.position
-        return HStack {
-            Text(fmt(pos))
-            Spacer()
-            Text(settings.showRemaining ? "-" + fmt(max(np.duration - pos, 0)) : fmt(np.duration))
-                .contentShape(Rectangle())
-                .onTapGesture { settings.showRemaining.toggle() }
-        }
-        .font(.system(size: 10)).monospacedDigit().foregroundStyle(.white.opacity(0.5))
     }
 
     // MARK: Controls
@@ -145,6 +126,37 @@ struct MediaPlayer: View {
 
     private func control(_ icon: String, size: CGFloat = 15, action: @escaping () -> Void) -> some View {
         Button(action: action) { Image(systemName: icon).font(.system(size: size)) }.buttonStyle(.plain)
+    }
+}
+
+/// Seek bar + times. The only part of the player that observes the 1 s position tick.
+struct MediaProgress: View {
+    let np: NowPlaying
+    @ObservedObject var clock: PlaybackClock
+    let tint: Color
+    @ObservedObject private var settings = MediaSettings.shared
+    @StateObject private var scrub = ScrubState()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SeekBar(fraction: np.duration > 0 ? min(clock.position / np.duration, 1) : 0,
+                    tint: tint, enabled: np.canSeek, scrub: scrub) { f in
+                np.seek(to: f * np.duration)
+            }
+            timeRow
+        }
+    }
+
+    private var timeRow: some View {
+        let pos = scrub.fraction.map { $0 * np.duration } ?? clock.position
+        return HStack {
+            Text(fmt(pos))
+            Spacer()
+            Text(settings.showRemaining ? "-" + fmt(max(np.duration - pos, 0)) : fmt(np.duration))
+                .contentShape(Rectangle())
+                .onTapGesture { settings.showRemaining.toggle() }
+        }
+        .font(.system(size: 10)).monospacedDigit().foregroundStyle(.white.opacity(0.5))
     }
 
     private func fmt(_ s: Double) -> String {

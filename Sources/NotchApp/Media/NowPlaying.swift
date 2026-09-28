@@ -1,6 +1,12 @@
 import AppKit
 import Combine
 
+/// Playback position, split out of `NowPlaying` so the 1 s tick only re-renders views that show
+/// progress (they observe `nowPlaying.clock`), not everything observing `NowPlaying`.
+final class PlaybackClock: ObservableObject {
+    @Published fileprivate(set) var position: Double = 0
+}
+
 /// What's playing, system-wide. Source is picked in MediaSettings: Automatic uses MediaRemote (any
 /// app, incl. browsers) through `MediaRemoteSource`, falling back to Spotify / Music over AppleScript
 /// if the helper can't run; "Music only" / "Spotify only" use AppleScript for that app.
@@ -20,7 +26,10 @@ final class NowPlaying: ObservableObject {
     @Published var artist = ""
     @Published private(set) var album = ""
     @Published var isPlaying = false { didSet { if isPlaying != oldValue { updateTicker() } } }
-    @Published var position: Double = 0
+    /// Ticks every second while playing. Observe this (or `$position` on it) to show progress.
+    let clock = PlaybackClock()
+    /// Current position; not published (see `clock`).
+    var position: Double { clock.position }
     @Published var duration: Double = 0
     @Published var appIcon: NSImage?
     @Published var artwork: NSImage? { didSet { if artwork !== oldValue { updateAccent() } } }
@@ -46,6 +55,7 @@ final class NowPlaying: ObservableObject {
     private let settings = MediaSettings.shared
     private var cancellables: Set<AnyCancellable> = []
     private var active: Player?
+    /// Main thread only (`refresh()` hands a copy to the background query).
     private var artworkKey = ""
     private var ticker: Timer?
     private var ticks = 0
@@ -194,7 +204,7 @@ final class NowPlaying: ObservableObject {
         active = nil
         isPlaying = false
         for kp in [\NowPlaying.title, \.rawTitle, \.artist, \.album] { assign(kp, "") }
-        assign(\.position, 0); assign(\.duration, 0)
+        setPosition(0); assign(\.duration, 0)
         if appIcon != nil { appIcon = nil }
         if !sourceBundleID.isEmpty { sourceBundleID = ""; updateFrontmost() }
         shuffle = .unknown; repeatMode = .unknown; isLiked = nil
@@ -203,6 +213,10 @@ final class NowPlaying: ObservableObject {
 
     private func assign<T: Equatable>(_ kp: ReferenceWritableKeyPath<NowPlaying, T>, _ value: T) {
         if self[keyPath: kp] != value { self[keyPath: kp] = value }
+    }
+
+    private func setPosition(_ p: Double) {
+        if clock.position != p { clock.position = p }
     }
 
     // MARK: Position ticking (a 1 s timer only while playing)
@@ -223,7 +237,7 @@ final class NowPlaying: ObservableObject {
         var p = anchor.elapsed
         if isPlaying { p += Date().timeIntervalSince(anchor.at) * anchor.rate }
         if duration > 0 { p = min(p, duration) }
-        assign(\.position, max(p, 0))
+        setPosition(max(p, 0))
         // AppleScript players don't broadcast seeks made in the app; resync occasionally.
         ticks += 1
         if !useRemote, isPlaying, ticks % 15 == 0 { refresh() }
@@ -281,7 +295,7 @@ final class NowPlaying: ObservableObject {
             runScript(p, "tell application \"\(p.name)\" to set player position to \(t)", refreshAfter: false)
         } else { return }
         anchor = (t, Date(), anchor.rate)
-        assign(\.position, t)
+        setPosition(t)
     }
 
     /// Music/Spotify is the source: shuffle/repeat/favorite go through AppleScript (state is readable).
@@ -431,6 +445,7 @@ final class NowPlaying: ObservableObject {
         refreshing = true
         let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
         let candidates = scriptPlayers
+        let knownKey = artworkKey
         queue.async { [weak self] in
             guard let self else { return }
             var result: (Player, [String])?
@@ -440,16 +455,18 @@ final class NowPlaying: ObservableObject {
                 if result == nil { result = (p, parts) }
             }
             var art: NSImage??
-            if let (p, parts) = result, "\(p.name)|\(parts[1])|\(parts[2])" != self.artworkKey {
-                self.artworkKey = "\(p.name)|\(parts[1])|\(parts[2])"
+            var key = knownKey
+            if let (p, parts) = result, "\(p.name)|\(parts[1])|\(parts[2])" != knownKey {
+                key = "\(p.name)|\(parts[1])|\(parts[2])"
                 art = .some(Self.fetchArtwork(p))
             } else if result == nil {
-                self.artworkKey = ""
+                key = ""
                 art = .some(nil)
             }
             DispatchQueue.main.async {
                 self.refreshing = false
                 guard !self.useRemote, candidates.map(\.bundleID) == self.scriptPlayers.map(\.bundleID) else { return }
+                self.artworkKey = key
                 if let art { self.artwork = art }
                 if let (p, parts) = result { self.apply(p, parts) } else { self.clear() }
                 if self.refreshAgain { self.refreshAgain = false; self.refresh() }

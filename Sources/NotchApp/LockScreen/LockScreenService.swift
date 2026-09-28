@@ -256,7 +256,7 @@ final class LockScreenService {
                 .receive(on: DispatchQueue.main)
                 .sink { m.artwork = $0 }
                 .store(in: &contentSubs)
-            np.$position.combineLatest(np.$duration)
+            np.clock.$position.combineLatest(np.$duration)
                 .receive(on: DispatchQueue.main)
                 .sink { pos, dur in
                     m.duration = dur

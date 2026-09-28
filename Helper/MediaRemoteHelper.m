@@ -14,6 +14,7 @@ typedef void (*SetElapsedFn)(double);
 typedef id (*GetOriginFn)(void);
 typedef void (*GetSupportedFn)(id, dispatch_queue_t, void (^)(NSArray *));
 typedef int (*CommandInfoCmdFn)(id);
+typedef void (*RegisterFn)(dispatch_queue_t);
 typedef Boolean (*CommandInfoEnabledFn)(id);
 
 // MRMediaRemoteCommand ids (checked with MRMediaRemoteCopyCommandDescription on macOS 27).
@@ -33,6 +34,7 @@ static GetOriginFn getLocalOrigin;
 static GetSupportedFn getSupported;
 static CommandInfoCmdFn commandInfoCommand;
 static CommandInfoEnabledFn commandInfoEnabled;
+static RegisterFn registerForNotifications;
 static NSString *lastLine;
 static NSString *lastArtworkKey;
 
@@ -120,6 +122,18 @@ static void poll(void) {
     });
 }
 
+/// Coalesces a burst of MediaRemote notifications (info + isPlaying + app change usually arrive
+/// together) into one query. Main queue only.
+static BOOL pollScheduled;
+static void schedulePoll(void) {
+    if (pollScheduled) return;
+    pollScheduled = YES;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        pollScheduled = NO;
+        poll();
+    });
+}
+
 static void readCommands(void) {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         char buf[256];
@@ -140,11 +154,18 @@ static void readCommands(void) {
                     sendCommand(sh ? kCmdSetShuffleMode : kCmdSetRepeatMode, (__bridge CFDictionaryRef)opt);
                 }
                 else if ([cmd hasPrefix:@"seek "] && setElapsed) setElapsed([[cmd substringFromIndex:5] doubleValue]);
-                poll();
+                // Shuffle/repeat/like and command availability don't always post a notification.
+                schedulePoll();
             });
         }
         exit(0); // parent closed the pipe: NotchApp quit
     });
+}
+
+/// Reads an exported `CFStringRef` constant, falling back to its (identical) literal value.
+static NSString *notificationName(void *h, const char *sym) {
+    CFStringRef *p = (CFStringRef *)dlsym(h, sym);
+    return p && *p ? (__bridge NSString *)*p : [NSString stringWithUTF8String:sym];
 }
 
 // Installed as a perl XSUB; the arguments perl passes are ignored. Never returns.
@@ -162,11 +183,35 @@ void notchapp_media_stream(void *a, void *b) {
     getSupported = (GetSupportedFn)dlsym(h, "MRMediaRemoteGetSupportedCommandsForOrigin");
     commandInfoCommand = (CommandInfoCmdFn)dlsym(h, "MRMediaRemoteCommandInfoGetCommand");
     commandInfoEnabled = (CommandInfoEnabledFn)dlsym(h, "MRMediaRemoteCommandInfoGetEnabled");
+    registerForNotifications = (RegisterFn)dlsym(h, "MRMediaRemoteRegisterForNowPlayingNotifications");
     if (!getInfo || !getIsPlaying || !sendCommand) { fprintf(stderr, "MediaRemote symbols missing\n"); exit(2); }
 
     readCommands();
+
+    // Push: MediaRemote posts these on the default center once registered. Elapsed time isn't
+    // streamed (NotchApp extrapolates from elapsed+timestamp+rate); seeks post InfoDidChange.
+    BOOL pushed = NO;
+    if (registerForNotifications) {
+        registerForNotifications(dispatch_get_main_queue());
+        NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
+        const char *names[] = {
+            "kMRMediaRemoteNowPlayingInfoDidChangeNotification",
+            "kMRMediaRemoteNowPlayingApplicationIsPlayingDidChangeNotification",
+            "kMRMediaRemoteNowPlayingApplicationDidChangeNotification",
+        };
+        for (size_t i = 0; i < sizeof names / sizeof *names; i++) {
+            [nc addObserverForName:notificationName(h, names[i]) object:nil queue:NSOperationQueue.mainQueue
+                        usingBlock:^(NSNotification *n) { schedulePoll(); }];
+        }
+        pushed = YES;
+    }
+    poll();
+
+    // Safety net for sources/state that change without a notification (e.g. supported commands).
+    // Without push support, fall back to the old fast poll.
+    uint64_t interval = pushed ? 5 * NSEC_PER_SEC : 500 * NSEC_PER_MSEC;
     dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
-    dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 500 * NSEC_PER_MSEC, 100 * NSEC_PER_MSEC);
+    dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, interval), interval, interval / 5);
     dispatch_source_set_event_handler(timer, ^{ poll(); });
     dispatch_resume(timer);
     CFRunLoopRun();
