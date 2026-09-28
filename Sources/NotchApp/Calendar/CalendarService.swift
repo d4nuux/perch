@@ -42,6 +42,7 @@ final class CalendarService: ObservableObject {
     enum Access { case notDetermined, granted, denied }
 
     static let activityKey = "calendar.upcoming"
+    private static let weatherToken = "calendar"
     static let privacyURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!
 
     @Published private(set) var access: Access = .notDetermined
@@ -87,11 +88,14 @@ final class CalendarService: ObservableObject {
             .dropFirst(3).receive(on: RunLoop.main)
             .sink { [weak self] in self?.updateLeave() }.store(in: &cancellables)
         o.$showWeather.removeDuplicates().receive(on: RunLoop.main)
-            .sink { [weak self] on in if on, self?.enabled == true { WeatherService.shared.start() } }
+            .sink { [weak self] on in self?.updateWeatherDemand(showWeather: on) }
             .store(in: &cancellables)
     }
 
-    deinit { stop() }
+    deinit {
+        stop()
+        WeatherService.shared.release(Self.weatherToken)
+    }
 
     // MARK: Public
 
@@ -134,6 +138,17 @@ final class CalendarService: ObservableObject {
         guard on != enabled else { return }
         enabled = on
         if on { start() } else { stop() }
+        updateWeatherDemand()
+    }
+
+    /// Weather runs for the Calendar tab only while the calendar and its weather row are on.
+    /// `showWeather` is passed from the publisher (which fires before the property is set).
+    private func updateWeatherDemand(showWeather: Bool? = nil) {
+        if enabled && (showWeather ?? options.showWeather) {
+            WeatherService.shared.acquire(Self.weatherToken)
+        } else {
+            WeatherService.shared.release(Self.weatherToken)
+        }
     }
 
     private func start() {
@@ -161,7 +176,6 @@ final class CalendarService: ObservableObject {
         RunLoop.main.add(t, forMode: .common)
         timer = t
 
-        if options.showWeather { WeatherService.shared.start() }
         // No prompt at launch: onboarding / the Calendar tab button ask. Pick up grants right away.
         observers.append((nc, nc.addObserver(forName: .notchPermissionsChanged, object: nil, queue: .main) {
             [weak self] _ in self?.tick()

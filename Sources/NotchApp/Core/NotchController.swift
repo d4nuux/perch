@@ -77,6 +77,8 @@ final class NotchController {
             .sink { [weak self] _ in self?.layout() }
             .store(in: &cancellables)
 
+        observeIdleInputs()
+        installDragMonitors()
         layout()
         setTimer(interval: Self.fastInterval)
     }
@@ -195,20 +197,86 @@ final class NotchController {
         return CGRect(x: f.midX - w / 2, y: f.maxY - ht, width: w, height: ht)
     }
 
-    private var dragBaseline = NSPasteboard(name: .drag).changeCount
+    // MARK: Drag detection (event-driven)
 
-    /// True while the user is dragging something (e.g. a file) — a plain click doesn't count.
-    private var isDraggingContent: Bool {
-        let count = NSPasteboard(name: .drag).changeCount
-        guard NSEvent.pressedMouseButtons & 1 == 1 else { dragBaseline = count; return false }
-        return count != dragBaseline
+    private var dragMonitors: [Any] = []
+    /// Drag pasteboard change count at the last mouse-up; a content drag bumps it.
+    private var dragBaseline = NSPasteboard(name: .drag).changeCount
+    /// Left button is down and has moved since the last mouse-up.
+    private var mouseDragging = false
+    /// This drag carries content (file, text...). A plain click-drag (selection, window move) doesn't.
+    private var isDraggingContent = false
+    /// Uptime of the last drag-pasteboard read during the current drag (rate limit).
+    private var lastDragCheck: TimeInterval = 0
+
+    private func installDragMonitors() {
+        let mask: NSEvent.EventTypeMask = [.leftMouseDragged, .leftMouseUp]
+        if let g = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] e in self?.dragEvent(e) }) {
+            dragMonitors.append(g)
+        }
+        if let l = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] e in
+            self?.dragEvent(e); return e
+        }) {
+            dragMonitors.append(l)
+        }
+    }
+
+    private func dragEvent(_ e: NSEvent) {
+        if e.type == .leftMouseUp {
+            // Plain clicks never touch the drag pasteboard, so only re-read it after a drag.
+            if mouseDragging { dragBaseline = NSPasteboard(name: .drag).changeCount }
+            mouseDragging = false
+            isDraggingContent = false
+            return
+        }
+        let now = ProcessInfo.processInfo.systemUptime
+        if !mouseDragging {
+            mouseDragging = true
+            lastDragCheck = now
+            isDraggingContent = NSPasteboard(name: .drag).changeCount != dragBaseline
+        } else if !isDraggingContent, now - lastDragCheck >= 0.1 {
+            // The source app writes the drag pasteboard a few points after the drag starts, so
+            // keep checking (≤10Hz, only during an undecided drag) until it shows up.
+            lastDragCheck = now
+            isDraggingContent = NSPasteboard(name: .drag).changeCount != dragBaseline
+        }
+    }
+
+    // MARK: Idle state (cached)
+
+    /// Collapsed idle width; recomputed only when its inputs change, and once a minute for
+    /// time-based calendar transitions (event started/ended).
+    private var idleExtra: CGFloat = 0
+
+    private func observeIdleInputs() {
+        let triggers: [AnyPublisher<Void, Never>] = [
+            nowPlaying.$isPlaying.map { _ in () }.eraseToAnyPublisher(),
+            nowPlaying.$hidesCollapsedActivity.map { _ in () }.eraseToAnyPublisher(),
+            calendar.$events.map { _ in () }.eraseToAnyPublisher(),
+            display.$idleContent.map { _ in () }.eraseToAnyPublisher(),
+            Timer.publish(every: 60, tolerance: 10, on: .main, in: .common).autoconnect()
+                .map { _ in () }.eraseToAnyPublisher(),
+        ]
+        // @Published fires in willSet: hop one run-loop turn so resolve() reads the new values.
+        Publishers.MergeMany(triggers)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.recomputeIdle() }
+            .store(in: &cancellables)
+        recomputeIdle()
+    }
+
+    private func recomputeIdle() {
+        idleExtra = IdleState.resolve(display.idleContent, nowPlaying: nowPlaying, calendar: calendar).extraWidth
     }
 
     private func trackMouse() {
         let mouse = NSEvent.mouseLocation
         let now = ProcessInfo.processInfo.systemUptime
-        let dragging = isDraggingContent // also keeps the drag baseline fresh every tick
-        let idleExtra = IdleState.resolve(display.idleContent, nowPlaying: nowPlaying, calendar: calendar).extraWidth
+        if isDraggingContent, NSEvent.pressedMouseButtons & 1 == 0 {
+            isDraggingContent = false // missed mouse-up (e.g. released over a secure input field)
+            mouseDragging = false
+        }
+        let dragging = isDraggingContent
 
         var hovered: ScreenHost?
         var nearest = CGFloat.infinity

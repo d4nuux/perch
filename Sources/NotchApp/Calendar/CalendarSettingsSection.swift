@@ -30,9 +30,13 @@ struct CalendarSettingsSection: View {
         }
         Toggle("Hourly chime", isOn: $s.hourlyChime)
         Toggle("Show weather in Calendar", isOn: $s.showWeather)
-        if s.showWeather {
-            WeatherSettingsSection()
+        // Shared weather options: shown regardless of the toggle above (Lock Screen uses them too).
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Weather").font(.headline)
+            Text("Used by Calendar and Lock Screen").font(.caption).foregroundStyle(.secondary)
         }
+        .padding(.top, 6)
+        WeatherSettingsSection()
     }
 
     @ViewBuilder private var calendarList: some View {

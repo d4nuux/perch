@@ -1,4 +1,5 @@
 import Accelerate
+import AppKit
 import Combine
 import Foundation
 
@@ -27,8 +28,13 @@ final class AudioVisualizer: ObservableObject {
     private var playingSub: AnyCancellable?
     private var settingsSub: AnyCancellable?
     private var stopWork: DispatchWorkItem?
-    /// After a failure / silence timeout, don't retry until this date (or the next play start).
+    /// After a failure / silence timeout, don't retry until this date.
     private var retryAfter = Date.distantPast
+    /// Consecutive failed / silent attempts. Backoff 30s, 2m, 10m, then give up until reset
+    /// (setting toggled or app activated). Reset on the first live levels.
+    private var failures = 0
+    private static let backoff: [TimeInterval] = [30, 120, 600]
+    private var activateObserver: NSObjectProtocol?
 
     private let control = DispatchQueue(label: "notchapp.waveform.control")
     private var engine: AnyObject? // SystemAudioTap, control queue only
@@ -36,8 +42,23 @@ final class AudioVisualizer: ObservableObject {
 
     private init() {
         settingsSub = WaveformSettings.shared.$useRealAudio.dropFirst().sink { [weak self] _ in
-            DispatchQueue.main.async { self?.update() }
+            DispatchQueue.main.async { self?.resetBackoff(); self?.update() }
         }
+        activateObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.resetBackoff(); self?.update() }
+    }
+
+    private func resetBackoff() {
+        failures = 0
+        retryAfter = .distantPast
+    }
+
+    /// Main thread. Schedules the next allowed attempt after a failure / silence.
+    private func backOff() {
+        failures += 1
+        retryAfter = failures <= Self.backoff.count
+            ? Date().addingTimeInterval(Self.backoff[failures - 1]) : .distantFuture
     }
 
     /// Gate on `nowPlaying.isPlaying`. Safe to call repeatedly with the same object.
@@ -45,7 +66,8 @@ final class AudioVisualizer: ObservableObject {
         guard playingSub == nil else { return }
         playingSub = nowPlaying.$isPlaying.removeDuplicates().sink { [weak self] playing in
             guard let self else { return }
-            if playing, self.isPlaying == false { self.retryAfter = .distantPast }
+            // A new play start may retry early, but still counts toward the backoff limit.
+            if playing, self.isPlaying == false, self.retryAfter != .distantFuture { self.retryAfter = .distantPast }
             self.isPlaying = playing
             self.update()
         }
@@ -111,12 +133,12 @@ final class AudioVisualizer: ObservableObject {
         guard running, wanted else { return }
         switch event {
         case .levels(let l):
-            if status != .live { status = .live }
+            if status != .live { status = .live; failures = 0 }
             levels = l
         case .silenceTimeout:
             // No samples at all for a while: permission denied, or nothing actually audible.
             status = .silent
-            retryAfter = Date().addingTimeInterval(30)
+            backOff()
             stop()
             status = .silent
             levels = [Float](repeating: 0, count: Self.bandCount)
@@ -125,7 +147,7 @@ final class AudioVisualizer: ObservableObject {
 
     private func fail(_ message: String) {
         status = .unavailable(message)
-        retryAfter = Date().addingTimeInterval(30)
+        backOff()
         stop()
         status = .unavailable(message)
     }

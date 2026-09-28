@@ -1,3 +1,4 @@
+import AppKit
 import CoreLocation
 import MapKit
 import SwiftUI
@@ -16,13 +17,18 @@ final class TimeToLeave {
     private let settings = CalendarSettings.shared
     private let geocoder = CLGeocoder()
     private var geoCache: [String: CLLocationCoordinate2D?] = [:]
-    private var eta: (eventID: String, transport: CalendarSettings.Transport, travel: TimeInterval, at: Date)?
+    private var eta: (eventID: String, transport: CalendarSettings.Transport, travel: TimeInterval, at: Date,
+                      dest: CLLocationCoordinate2D)?
     private var computing: String?
     private var fired: [String: Date] = [:]
+    /// Pending retry while the notch is busy (expanded / HUD / meeting alert), every 3 s.
+    private var retryWork: DispatchWorkItem?
 
     init(model: NotchModel) { self.model = model }
 
     func reset() {
+        retryWork?.cancel()
+        retryWork = nil
         eta = nil
         model.dismissActivity(key: Self.activityKey)
     }
@@ -39,7 +45,7 @@ final class TimeToLeave {
 
         if let eta, eta.eventID == event.id, eta.transport == settings.transport,
            -eta.at.timeIntervalSinceNow < Self.recompute {
-            evaluate(event, travel: eta.travel)
+            evaluate(event, travel: eta.travel, dest: eta.dest)
         } else {
             computeETA(for: event)
         }
@@ -65,8 +71,8 @@ final class TimeToLeave {
                     DispatchQueue.main.async {
                         self.computing = nil
                         guard let travel = resp?.expectedTravelTime else { return }
-                        self.eta = (event.id, transport, travel, Date())
-                        self.evaluate(event, travel: travel)
+                        self.eta = (event.id, transport, travel, Date(), dest)
+                        self.evaluate(event, travel: travel, dest: dest)
                     }
                 }
             }
@@ -88,7 +94,12 @@ final class TimeToLeave {
 
     // MARK: Presentation
 
-    private func evaluate(_ event: CalendarEvent, travel: TimeInterval) {
+    /// Same gating as the meeting alert (`calendar.upcoming`): never over the open notch, a HUD or
+    /// the meeting alert; retried every 3 s while the alert is still valid (the heads-up until leave
+    /// time, "Leave now" until the event starts). The heads-up respects `quietMode`; "Leave now" doesn't.
+    private func evaluate(_ event: CalendarEvent, travel: TimeInterval, dest: CLLocationCoordinate2D) {
+        retryWork?.cancel()
+        retryWork = nil
         let leaveAt = event.start.addingTimeInterval(-travel - Double(settings.leaveBufferMinutes) * 60)
         let now = Date()
         let untilLeave = leaveAt.timeIntervalSince(now)
@@ -100,20 +111,48 @@ final class TimeToLeave {
             key = nowKey
         } else if untilLeave <= Self.headsUp {
             guard fired[soonKey] == nil else { return }
+            // Quiet: skip the heads-up; the minute tick re-checks once quiet ends.
+            if model.quietMode { return }
             key = soonKey
         } else { return }
-        // Don't cover an active HUD or meeting alert, or pop over the open notch; retry next tick.
         if model.isExpanded || model.activity.map({ $0.key.hasPrefix("hud.") || $0.key == CalendarService.activityKey }) == true {
+            let work = DispatchWorkItem { [weak self] in self?.evaluate(event, travel: travel, dest: dest) }
+            retryWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)
             return
         }
         fired[soonKey] = event.start
         if key == nowKey { fired[nowKey] = event.start }
-        model.present(makeActivity(event, leaveAt: leaveAt, travel: travel), duration: 10)
+        let maps = Self.mapsURL(for: event, dest: dest, transport: settings.transport)
+        model.present(makeActivity(event, leaveAt: leaveAt, travel: travel, maps: maps), duration: 10)
     }
 
-    private func makeActivity(_ event: CalendarEvent, leaveAt: Date, travel: TimeInterval) -> LiveActivity {
+    /// Apple Maps directions to the event (address text if it has one, else the coordinate).
+    static func mapsURL(for event: CalendarEvent, dest: CLLocationCoordinate2D,
+                        transport: CalendarSettings.Transport) -> URL? {
+        var c = URLComponents()
+        c.scheme = "maps"
+        c.host = ""
+        let address = event.coordinate == nil ? event.physicalLocation?.trimmingCharacters(in: .whitespacesAndNewlines) : nil
+        let daddr = (address?.isEmpty == false) ? address! : "\(dest.latitude),\(dest.longitude)"
+        let flag: String
+        switch transport {
+        case .driving: flag = "d"
+        case .walking: flag = "w"
+        case .transit: flag = "r"
+        }
+        c.queryItems = [URLQueryItem(name: "daddr", value: daddr), URLQueryItem(name: "dirflg", value: flag)]
+        return c.url
+    }
+
+    private func openMaps(_ url: URL) {
+        NSWorkspace.shared.open(url)
+        model.dismissActivity(key: Self.activityKey)
+    }
+
+    private func makeActivity(_ event: CalendarEvent, leaveAt: Date, travel: TimeInterval, maps: URL?) -> LiveActivity {
         let transport = settings.transport
-        return LiveActivity(key: Self.activityKey, extraWidth: 130) {
+        let activity = LiveActivity(key: Self.activityKey, extraWidth: 130) {
             Image(systemName: transport.symbol)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(event.tint)
@@ -128,10 +167,21 @@ final class TimeToLeave {
                 Text("\(Int((travel / 60).rounded(.up))) min \(transport.verb)")
                     .font(.system(size: 11)).monospacedDigit()
                     .foregroundStyle(.white.opacity(0.55))
+                if let maps {
+                    Button { [weak self] in self?.openMaps(maps) } label: {
+                        Label("Maps", systemImage: "map.fill")
+                            .font(.system(size: 11, weight: .semibold))
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Capsule().fill(.white.opacity(0.18)))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Directions in Maps")
+                }
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 4)
         }
+        return maps == nil ? activity : activity.interactive()
     }
 }
 

@@ -28,7 +28,7 @@ struct MediaKeyPress {
 /// claim — and every event whenever the tap can't be created — passes through untouched.
 final class MediaKeyTap {
     private let handler: (MediaKeyPress) -> Bool
-    private var tap: CFMachPort?
+    private var tap: CFMachPort?  // guarded by `lock`
     private var thread: Thread?
     private var retryTimer: Timer?
     /// Key codes whose key-down we swallowed; their key-up is swallowed too. Tap thread only.
@@ -53,19 +53,70 @@ final class MediaKeyTap {
 
     /// Call on the main thread. Never prompts (onboarding / Settings › Permissions request
     /// Accessibility); retries every few seconds until the process is trusted and the tap exists.
+    /// Once it exists, a health check (every 30s and on wake) re-creates it if it died.
     func start() {
-        if AXIsProcessTrusted(), createTap() { return }
-        retryTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] timer in
+        guard !started else { return }
+        started = true
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.checkHealth() }
+        if AXIsProcessTrusted(), createTap() { schedule(health: true) } else { schedule(health: false) }
+    }
+
+    private var started = false
+    private var wakeObserver: NSObjectProtocol?
+    /// The only timer: 3s creation retry while there's no tap, 30s health check while there is.
+    private var timerIsHealth: Bool?
+    private let lock = NSLock()
+    /// Run loop of the current tap thread (set from that thread). Guarded by `lock`, as is `tap`.
+    private var tapRunLoop: CFRunLoop?
+
+    private func schedule(health: Bool) {
+        guard timerIsHealth != health else { return }
+        timerIsHealth = health
+        retryTimer?.invalidate()
+        let t = Timer(timeInterval: health ? 30 : 3, repeats: true) { [weak self] timer in
             guard let self else { timer.invalidate(); return }
-            if AXIsProcessTrusted(), self.createTap() {
-                timer.invalidate()
-                self.retryTimer = nil
-            }
+            self.checkHealth()
         }
+        t.tolerance = health ? 10 : 1
+        RunLoop.main.add(t, forMode: .common)
+        retryTimer = t
+    }
+
+    /// Main thread. Cheap: two CF calls while the tap is healthy.
+    private func checkHealth() {
+        if let port = currentTap() {
+            if CFMachPortIsValid(port) {
+                if CGEvent.tapIsEnabled(tap: port) { return }
+                CGEvent.tapEnable(tap: port, enable: true)
+                if CGEvent.tapIsEnabled(tap: port) { return }
+            }
+            destroyTap()
+        }
+        if AXIsProcessTrusted(), createTap() { schedule(health: true) } else { schedule(health: false) }
+    }
+
+    private func currentTap() -> CFMachPort? {
+        lock.lock(); defer { lock.unlock() }
+        return tap
+    }
+
+    /// Main thread. Invalidating the port removes its source, so the tap thread's run loop exits.
+    private func destroyTap() {
+        lock.lock()
+        let port = tap, rl = tapRunLoop
+        tap = nil; tapRunLoop = nil
+        lock.unlock()
+        guard let port else { return }
+        CGEvent.tapEnable(tap: port, enable: false)
+        CFMachPortInvalidate(port)
+        if let rl { CFRunLoopStop(rl) }
+        thread = nil
     }
 
     private func createTap() -> Bool {
-        guard tap == nil else { return true }
+        guard currentTap() == nil else { return true }
         let sysMask = CGEventMask(1) << CGEventMask(Self.sysDefinedType.rawValue)
         let keyMask = CGEventMask(1) << CGEventMask(CGEventType.keyDown.rawValue)
             | CGEventMask(1) << CGEventMask(CGEventType.keyUp.rawValue)
@@ -76,11 +127,19 @@ final class MediaKeyTap {
         }
         // If keyboard events can't be tapped, keep the media-key tap alone.
         guard let port = make(sysMask | keyMask) ?? make(sysMask) else { return false }
-        tap = port
+        lock.lock(); tap = port; lock.unlock()
 
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, port, 0)
-        let t = Thread {
-            CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
+        let t = Thread { [weak self] in
+            let rl = CFRunLoopGetCurrent()
+            if let self {
+                self.lock.lock()
+                let current = self.tap === port
+                if current { self.tapRunLoop = rl }
+                self.lock.unlock()
+                guard current else { return } // destroyed before this thread started
+            }
+            CFRunLoopAddSource(rl, source, .commonModes)
             CGEvent.tapEnable(tap: port, enable: true)
             CFRunLoopRun()
         }
@@ -94,7 +153,7 @@ final class MediaKeyTap {
     fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            if let tap = currentTap() { CGEvent.tapEnable(tap: tap, enable: true) }
             return Unmanaged.passUnretained(event)
         case Self.sysDefinedType:
             break

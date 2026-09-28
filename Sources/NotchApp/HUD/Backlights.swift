@@ -15,9 +15,10 @@ final class DisplayBrightness {
         setFn = dlsym(h, "DisplayServicesSetBrightness").map { unsafeBitCast($0, to: SetFn.self) }
     }
 
-    private var display: CGDirectDisplayID { CGMainDisplayID() }
+    /// The built-in panel even when an external monitor is main; main display if there is none.
+    private var display: CGDirectDisplayID { Self.builtInDisplay ?? CGMainDisplayID() }
 
-    /// nil when the main display isn't controllable (e.g. an external monitor, lid closed).
+    /// nil when the display isn't controllable (e.g. lid closed with only an external monitor).
     var brightness: Float? {
         guard let getFn else { return nil }
         var v: Float = -1

@@ -127,7 +127,18 @@ final class LockScreenService {
         update()
     }
 
+    private var weatherWanted = false
+
+    private func syncWeatherDemand() {
+        if weatherWanted && context.settings.lockScreenWidgets {
+            WeatherService.shared.acquire("lockscreen")
+        } else {
+            WeatherService.shared.release("lockscreen")
+        }
+    }
+
     private func update() {
+        syncWeatherDemand()
         let master = context.settings.lockScreenWidgets
         keepAwake.held = master && isLocked && prefs.keepAwake
         let wantShown = master && SkyLightBridge.shared.isAvailable
@@ -141,7 +152,8 @@ final class LockScreenService {
         if m.enabled != enabled { m.enabled = enabled }
         if m.style != style { m.style = style }
         // Warm weather up ahead of the lock so it's there when the screen locks.
-        if enabled.contains(.weather) { WeatherService.shared.start() }
+        weatherWanted = enabled.contains(.weather)
+        syncWeatherDemand()
         if isShowing { subscribeContent() }
     }
 
@@ -270,7 +282,6 @@ final class LockScreenService {
         }
 
         if on.contains(.weather) {
-            WeatherService.shared.start()
             WeatherService.shared.$current
                 .receive(on: DispatchQueue.main)
                 .sink { m.weather = $0 }

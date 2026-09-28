@@ -17,8 +17,8 @@ struct WeatherSnapshot: Equatable {
 
 extension WeatherSnapshot: Codable {}
 
-/// Fetches Open-Meteo every 30 min and on wake, once `start()` has been called by a feature that
-/// shows weather. Location: CoreLocation (one-shot, when-in-use) or the manual city from
+/// Fetches Open-Meteo every 30 min and on wake while at least one feature holds demand via
+/// `acquire(_:)` (balanced by `release(_:)`); idle otherwise. Location: CoreLocation (one-shot, when-in-use) or the manual city from
 /// `WeatherSettings` (geocoded once, cached). The last snapshot is cached in UserDefaults.
 final class WeatherService: ObservableObject {
     static let shared = WeatherService()
@@ -33,7 +33,10 @@ final class WeatherService: ObservableObject {
     private static let refreshInterval: TimeInterval = 30 * 60
 
     private let d = UserDefaults.standard
-    private var started = false
+    /// Tokens of the features currently showing weather.
+    private var demand = Set<String>()
+    private var cacheLoaded = false
+    private var authHooked = false
     private var fetching = false
     private var lastFetch: Date?
     private var timer: Timer?
@@ -50,12 +53,33 @@ final class WeatherService: ObservableObject {
 
     private init() {}
 
-    /// Starts fetching (idempotent). Called by any feature that needs weather.
-    func start() {
-        if !Thread.isMainThread { DispatchQueue.main.async { self.start() }; return }
-        guard !started else { return }
-        started = true
-        loadCache()
+    /// Legacy entry point: same as `acquire("legacy")` (never released). Prefer acquire/release.
+    func start() { acquire("legacy") }
+
+    /// Registers demand for weather under `token` (idempotent per token). Fetching (timer, wake
+    /// observer, location requests) runs only while at least one token is held.
+    func acquire(_ token: String) {
+        if !Thread.isMainThread { DispatchQueue.main.async { self.acquire(token) }; return }
+        guard demand.insert(token).inserted, demand.count == 1 else { return }
+        activate()
+    }
+
+    /// Drops the demand registered under `token`. The last release stops all background work;
+    /// the cached snapshot stays published.
+    func release(_ token: String) {
+        if !Thread.isMainThread { DispatchQueue.main.async { self.release(token) }; return }
+        guard demand.remove(token) != nil, demand.isEmpty else { return }
+        deactivate()
+    }
+
+    private var started: Bool { !demand.isEmpty }
+
+    private func activate() {
+        if !cacheLoaded { cacheLoaded = true; loadCache() }
+        if !authHooked {
+            authHooked = true // onAuthorized has no removal; the handler checks demand instead.
+            LocationProvider.shared.onAuthorized.append { [weak self] in self?.refresh(force: true) }
+        }
 
         let t = Timer(timeInterval: Self.refreshInterval, repeats: true) { [weak self] _ in
             self?.refresh(force: true)
@@ -69,8 +93,6 @@ final class WeatherService: ObservableObject {
             .sink { [weak self] _ in self?.refresh(force: false) }
             .store(in: &cancellables)
 
-        LocationProvider.shared.onAuthorized.append { [weak self] in self?.refresh(force: true) }
-
         let s = WeatherSettings.shared
         s.$useCurrentLocation.removeDuplicates().dropFirst()
             .receive(on: RunLoop.main)
@@ -78,6 +100,12 @@ final class WeatherService: ObservableObject {
             .store(in: &cancellables)
 
         refresh(force: false)
+    }
+
+    private func deactivate() {
+        timer?.invalidate()
+        timer = nil
+        cancellables.removeAll()
     }
 
     /// Forecast for a calendar day (user's calendar), if within the fetched range.
@@ -94,7 +122,7 @@ final class WeatherService: ObservableObject {
         fetching = true
         resolveLocation { [weak self] coord, name in
             guard let self else { return }
-            guard let coord else {
+            guard let coord, self.started else {
                 self.fetching = false
                 return
             }
