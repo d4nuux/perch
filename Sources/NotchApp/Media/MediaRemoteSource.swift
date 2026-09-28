@@ -9,6 +9,11 @@ final class MediaRemoteSource {
         var duration: Double = 0, elapsed: Double = 0, rate: Double = 0
         var timestamp = Date()
         var artwork: NSImage??  // .none = unchanged, .some(nil) = no artwork
+        /// MRMediaRemoteShuffleMode (1 off, 2 albums, 3 songs) / RepeatMode (1 off, 2 one, 3 all), if exposed.
+        var shuffleMode: Int?, repeatMode: Int?
+        var isLiked: Bool?
+        /// Enabled MRMediaRemoteCommand ids; nil if the helper couldn't query them.
+        var commands: Set<Int>?
     }
 
     var onUpdate: ((State) -> Void)?
@@ -21,6 +26,9 @@ final class MediaRemoteSource {
     private var buffer = Data()
     private var failures = 0
     private var gotData = false
+    private var stopped = false
+    /// Bumped per launch so a stale process's exit handler can't touch the current one.
+    private var generation = 0
 
     static var helperFiles: (script: String, dylib: String)? {
         guard let res = Bundle.main.resourceURL else { return nil }
@@ -31,7 +39,11 @@ final class MediaRemoteSource {
     }
 
     func start() {
+        stopped = false
+        guard process == nil else { return }
         guard let files = Self.helperFiles else { onUnavailable?(); return }
+        generation += 1
+        let gen = generation
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
         p.arguments = [files.script, files.dylib]
@@ -41,10 +53,17 @@ final class MediaRemoteSource {
         p.standardError = FileHandle.nullDevice
         out.fileHandleForReading.readabilityHandler = { [weak self] h in
             let chunk = h.availableData
-            DispatchQueue.main.async { self?.consume(chunk) }
+            if chunk.isEmpty { h.readabilityHandler = nil; return } // EOF
+            DispatchQueue.main.async {
+                guard let self, self.generation == gen else { return }
+                self.consume(chunk)
+            }
         }
         p.terminationHandler = { [weak self] _ in
-            DispatchQueue.main.async { self?.handleExit() }
+            DispatchQueue.main.async {
+                guard let self, self.generation == gen else { return }
+                self.handleExit()
+            }
         }
         do {
             try p.run()
@@ -61,6 +80,17 @@ final class MediaRemoteSource {
         try? input.write(contentsOf: data)
     }
 
+    /// Stops the helper (e.g. the user picked an AppleScript-only source). `start()` resumes.
+    func stop() {
+        stopped = true
+        generation += 1
+        process?.terminate()
+        process = nil
+        input = nil
+        buffer.removeAll()
+        isRunning = false
+    }
+
     deinit { process?.terminate() }
 
     private func handleExit() {
@@ -70,7 +100,10 @@ final class MediaRemoteSource {
         failures += 1
         // Crashed before ever producing data twice in a row: this OS doesn't allow it.
         if !gotData && failures >= 2 { onUnavailable?(); return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.start() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            guard let self, !self.stopped else { return }
+            self.start()
+        }
     }
 
     private func consume(_ chunk: Data) {
@@ -99,6 +132,10 @@ final class MediaRemoteSource {
         if let b64 = o["artwork"] as? String {
             s.artwork = .some(Data(base64Encoded: b64).flatMap(NSImage.init(data:)))
         }
+        s.shuffleMode = (o["shuffle"] as? NSNumber)?.intValue
+        s.repeatMode = (o["repeat"] as? NSNumber)?.intValue
+        s.isLiked = (o["liked"] as? NSNumber)?.boolValue
+        if let c = o["commands"] as? [NSNumber] { s.commands = Set(c.map(\.intValue)) }
         return s
     }
 }

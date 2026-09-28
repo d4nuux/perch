@@ -158,12 +158,7 @@ struct SettingsPaneView: View {
                 HUDSettingsSection()
             }
         case .activities:
-            FormPane {
-                Toggle("Charging & battery", isOn: $settings.chargingActivity)
-                Toggle("Bluetooth devices", isOn: $settings.bluetoothActivity)
-                Toggle("Track changes", isOn: $settings.trackChangeActivity)
-                ActivitiesSettingsSection()
-            }
+            FormPane { ActivitiesSettingsSection() }
         case .calendar:
             FormPane {
                 Toggle("Calendar & meeting alerts", isOn: $settings.calendarEnabled)

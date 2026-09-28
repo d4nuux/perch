@@ -11,6 +11,17 @@ typedef void (*GetClientFn)(dispatch_queue_t, void (^)(id));
 typedef CFStringRef (*ClientBundleFn)(id);
 typedef Boolean (*SendCommandFn)(int, CFDictionaryRef);
 typedef void (*SetElapsedFn)(double);
+typedef id (*GetOriginFn)(void);
+typedef void (*GetSupportedFn)(id, dispatch_queue_t, void (^)(NSArray *));
+typedef int (*CommandInfoCmdFn)(id);
+typedef Boolean (*CommandInfoEnabledFn)(id);
+
+// MRMediaRemoteCommand ids (checked with MRMediaRemoteCopyCommandDescription on macOS 27).
+enum {
+    kCmdTogglePlayPause = 2, kCmdNext = 4, kCmdPrevious = 5,
+    kCmdAdvanceShuffle = 6, kCmdAdvanceRepeat = 7, kCmdLike = 21,
+    kCmdSetRepeatMode = 25, kCmdSetShuffleMode = 26,
+};
 
 static GetInfoFn getInfo;
 static GetIsPlayingFn getIsPlaying;
@@ -18,6 +29,10 @@ static GetClientFn getClient;
 static ClientBundleFn clientBundle, clientParentBundle;
 static SendCommandFn sendCommand;
 static SetElapsedFn setElapsed;
+static GetOriginFn getLocalOrigin;
+static GetSupportedFn getSupported;
+static CommandInfoCmdFn commandInfoCommand;
+static CommandInfoEnabledFn commandInfoEnabled;
 static NSString *lastLine;
 static NSString *lastArtworkKey;
 
@@ -32,7 +47,7 @@ static void emit(NSDictionary *obj) {
 static void poll(void) {
     getInfo(dispatch_get_main_queue(), ^(NSDictionary *info) {
         getIsPlaying(dispatch_get_main_queue(), ^(Boolean playing) {
-            void (^finish)(NSString *) = ^(NSString *bundle) {
+            void (^finish)(NSString *, NSArray *) = ^(NSString *bundle, NSArray *commandInfos) {
                 NSMutableDictionary *o = [NSMutableDictionary dictionary];
                 NSString *title = info[@"kMRMediaRemoteNowPlayingInfoTitle"] ?: @"";
                 NSString *artist = info[@"kMRMediaRemoteNowPlayingInfoArtist"] ?: @"";
@@ -45,6 +60,34 @@ static void poll(void) {
                 NSDate *ts = info[@"kMRMediaRemoteNowPlayingInfoTimestamp"];
                 o[@"timestamp"] = @(ts ? ts.timeIntervalSince1970 : NSDate.date.timeIntervalSince1970);
                 o[@"bundle"] = bundle ?: @"";
+
+                // Shuffle / repeat / like state when the source exposes it (MRMediaRemoteShuffleMode:
+                // 1 off, 2 albums, 3 songs; MRMediaRemoteRepeatMode: 1 off, 2 one, 3 all).
+                id shuffle = info[@"kMRMediaRemoteNowPlayingInfoShuffleMode"];
+                id repeat = info[@"kMRMediaRemoteNowPlayingInfoRepeatMode"];
+                id liked = info[@"kMRMediaRemoteNowPlayingInfoIsLiked"];
+                NSMutableArray *enabled = [NSMutableArray array];
+                for (id ci in commandInfos) {
+                    if (commandInfoEnabled && !commandInfoEnabled(ci)) continue;
+                    int c = commandInfoCommand(ci);
+                    [enabled addObject:@(c)];
+                    // Some sources report the current mode only in the Set*Mode command's options.
+                    if ((c == kCmdSetShuffleMode && !shuffle) || (c == kCmdSetRepeatMode && !repeat)) {
+                        NSDictionary *opts = [ci respondsToSelector:@selector(options)] ? [ci valueForKey:@"options"] : nil;
+                        NSString *needle = c == kCmdSetShuffleMode ? @"ShuffleMode" : @"RepeatMode";
+                        if ([opts isKindOfClass:NSDictionary.class]) for (NSString *k in opts) {
+                            if ([k isKindOfClass:NSString.class] && [k containsString:needle]
+                                && [opts[k] isKindOfClass:NSNumber.class]) {
+                                if (c == kCmdSetShuffleMode) shuffle = opts[k]; else repeat = opts[k];
+                                break;
+                            }
+                        }
+                    }
+                }
+                if ([shuffle isKindOfClass:NSNumber.class]) o[@"shuffle"] = shuffle;
+                if ([repeat isKindOfClass:NSNumber.class]) o[@"repeat"] = repeat;
+                if ([liked isKindOfClass:NSNumber.class]) o[@"liked"] = liked;
+                if (commandInfos) o[@"commands"] = [enabled sortedArrayUsingSelector:@selector(compare:)];
 
                 NSData *art = info[@"kMRMediaRemoteNowPlayingInfoArtworkData"];
                 NSString *artKey = [NSString stringWithFormat:@"%@|%@|%@|%lu", title, artist, album, (unsigned long)art.length];
@@ -60,12 +103,18 @@ static void poll(void) {
                 }
                 emit(o);
             };
-            if (!getClient) { finish(nil); return; }
+            void (^withCommands)(NSString *) = ^(NSString *bundle) {
+                if (!getSupported || !getLocalOrigin || !commandInfoCommand) { finish(bundle, nil); return; }
+                getSupported(getLocalOrigin(), dispatch_get_main_queue(), ^(NSArray *infos) {
+                    finish(bundle, infos ?: @[]);
+                });
+            };
+            if (!getClient) { withCommands(nil); return; }
             getClient(dispatch_get_main_queue(), ^(id client) {
                 NSString *b = nil;
                 if (client && clientParentBundle) b = (__bridge NSString *)clientParentBundle(client);
                 if (!b.length && client && clientBundle) b = (__bridge NSString *)clientBundle(client);
-                finish(b);
+                withCommands(b);
             });
         });
     });
@@ -78,9 +127,18 @@ static void readCommands(void) {
             NSString *cmd = [[NSString stringWithUTF8String:buf]
                              stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
             dispatch_async(dispatch_get_main_queue(), ^{
-                if ([cmd isEqualToString:@"toggle"]) sendCommand(2, NULL);
-                else if ([cmd isEqualToString:@"next"]) sendCommand(4, NULL);
-                else if ([cmd isEqualToString:@"previous"]) sendCommand(5, NULL);
+                if ([cmd isEqualToString:@"toggle"]) sendCommand(kCmdTogglePlayPause, NULL);
+                else if ([cmd isEqualToString:@"next"]) sendCommand(kCmdNext, NULL);
+                else if ([cmd isEqualToString:@"previous"]) sendCommand(kCmdPrevious, NULL);
+                else if ([cmd isEqualToString:@"shuffle"]) sendCommand(kCmdAdvanceShuffle, NULL);
+                else if ([cmd isEqualToString:@"repeat"]) sendCommand(kCmdAdvanceRepeat, NULL);
+                else if ([cmd isEqualToString:@"like"]) sendCommand(kCmdLike, NULL);
+                else if ([cmd hasPrefix:@"setshuffle "] || [cmd hasPrefix:@"setrepeat "]) {
+                    BOOL sh = [cmd hasPrefix:@"setshuffle "];
+                    int mode = [[cmd substringFromIndex:sh ? 11 : 10] intValue];
+                    NSDictionary *opt = @{(sh ? @"kMRMediaRemoteOptionShuffleMode" : @"kMRMediaRemoteOptionRepeatMode"): @(mode)};
+                    sendCommand(sh ? kCmdSetShuffleMode : kCmdSetRepeatMode, (__bridge CFDictionaryRef)opt);
+                }
                 else if ([cmd hasPrefix:@"seek "] && setElapsed) setElapsed([[cmd substringFromIndex:5] doubleValue]);
                 poll();
             });
@@ -100,6 +158,10 @@ void notchapp_media_stream(void *a, void *b) {
     clientParentBundle = (ClientBundleFn)dlsym(h, "MRNowPlayingClientGetParentAppBundleIdentifier");
     sendCommand = (SendCommandFn)dlsym(h, "MRMediaRemoteSendCommand");
     setElapsed = (SetElapsedFn)dlsym(h, "MRMediaRemoteSetElapsedTime");
+    getLocalOrigin = (GetOriginFn)dlsym(h, "MRMediaRemoteGetLocalOrigin");
+    getSupported = (GetSupportedFn)dlsym(h, "MRMediaRemoteGetSupportedCommandsForOrigin");
+    commandInfoCommand = (CommandInfoCmdFn)dlsym(h, "MRMediaRemoteCommandInfoGetCommand");
+    commandInfoEnabled = (CommandInfoEnabledFn)dlsym(h, "MRMediaRemoteCommandInfoGetEnabled");
     if (!getInfo || !getIsPlaying || !sendCommand) { fprintf(stderr, "MediaRemote symbols missing\n"); exit(2); }
 
     readCommands();

@@ -83,6 +83,16 @@ final class BluetoothMonitor: NSObject {
         disconnectNotes[addr] = n
     }
 
+    /// Number of connected devices we're tracking (any class).
+    var connectedCount: Int { disconnectNotes.count }
+
+    /// Currently connected audio / input devices, with fresh battery readings.
+    func connectedDevices() -> [Device] {
+        ((IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice]) ?? [])
+            .filter { $0.isConnected() && Self.isRelevant($0) }
+            .map(Self.describe)
+    }
+
     // MARK: Classification
 
     private static func address(_ d: IOBluetoothDevice) -> String {

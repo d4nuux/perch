@@ -9,9 +9,11 @@ import Foundation
 ///   keep the single best pending activity and show it when the notch frees up, unless it
 ///   has gone stale by then.
 /// - Among our own activities, a lower rank never replaces a higher one that is showing.
+/// - While `model.quietMode` is set, nothing presents (or is queued) unless marked `essential`
+///   (critical battery).
 final class ActivityPresenter {
     enum Rank: Int, Comparable {
-        case track = 0, bluetooth, power, lowBattery
+        case track = 0, unlock, bluetooth, focus, lowPower, power, deviceBattery, lowBattery
         static func < (a: Rank, b: Rank) -> Bool { a.rawValue < b.rawValue }
     }
 
@@ -24,6 +26,7 @@ final class ActivityPresenter {
         let rank: Rank
         let duration: TimeInterval
         let expires: Date
+        let essential: Bool
     }
 
     private let model: NotchModel
@@ -48,17 +51,21 @@ final class ActivityPresenter {
     }
 
     /// Presents `activity` (key must start with `activity.`) subject to the rules above.
-    func present(_ activity: LiveActivity, rank: Rank, duration: TimeInterval, queueable: Bool = true) {
+    func present(_ activity: LiveActivity, rank: Rank, duration: TimeInterval, queueable: Bool = true,
+                 essential: Bool = false) {
         guard Thread.isMainThread else {
-            DispatchQueue.main.async { self.present(activity, rank: rank, duration: duration, queueable: queueable) }
+            DispatchQueue.main.async {
+                self.present(activity, rank: rank, duration: duration, queueable: queueable, essential: essential)
+            }
             return
         }
         if model.isExpanded { return }
+        if model.quietMode, !essential { return }
         if canShow(rank: rank) {
             show(activity, rank: rank, duration: duration)
         } else if queueable {
             enqueue(Pending(activity: activity, rank: rank, duration: duration,
-                            expires: Date().addingTimeInterval(Self.queueTTL)))
+                            expires: Date().addingTimeInterval(Self.queueTTL), essential: essential))
         }
     }
 
@@ -92,7 +99,7 @@ final class ActivityPresenter {
         guard model.activity == nil else { return }
         shownRank = nil
         guard let p = pending else { return }
-        guard p.expires > Date() else { pending = nil; return }
+        guard p.expires > Date(), !model.quietMode || p.essential else { pending = nil; return }
         guard !model.isExpanded else { return }
         pending = nil
         show(p.activity, rank: p.rank, duration: p.duration)

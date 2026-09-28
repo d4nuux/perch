@@ -20,7 +20,7 @@ struct CollapsedActivity: View {
             .frame(width: 22, height: 22)
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             Spacer(minLength: notchWidth)
-            Equalizer(color: .white).frame(width: 24, height: 14)
+            Equalizer(color: nowPlaying.accentColor.map { Color(nsColor: $0) } ?? .white).frame(width: 24, height: 14)
         }
         .padding(.horizontal, 12)
         .onAppear { AudioVisualizer.shared.attach(nowPlaying) }

@@ -19,30 +19,102 @@ enum ActivityViews {
 
     // MARK: Power
 
-    static func charging(level: Int) -> LiveActivity {
-        LiveActivity(key: "activity.power", extraWidth: 100) {
+    static let lowPowerYellow = Color(red: 1.0, green: 0.80, blue: 0.0)
+    static let focusIndigo = Color(red: 0.49, green: 0.47, blue: 1.0)
+
+    /// "3h 24m", "24m".
+    static func duration(minutes m: Int) -> String {
+        m >= 60 ? "\(m / 60)h \(String(format: "%02d", m % 60))m" : "\(m)m"
+    }
+
+    /// Width for a trailing value group: percent and/or time.
+    private static func powerWidth(percent: Bool, time: Bool) -> CGFloat {
+        switch (percent, time) {
+        case (true, true): 170
+        case (false, true): 120
+        case (true, false): 100
+        case (false, false): 60
+        }
+    }
+
+    static func charging(level: Int, minutesToFull: Int?, hidePercent: Bool) -> LiveActivity {
+        LiveActivity(key: "activity.power",
+                     extraWidth: powerWidth(percent: !hidePercent, time: minutesToFull != nil)) {
             Symbol(name: "battery.100.bolt", color: charging)
         } trailing: {
-            Percent(level: level, color: charging)
+            PowerValue(level: hidePercent ? nil : level, minutes: minutesToFull, color: charging)
         }
     }
 
-    static func unplugged(level: Int) -> LiveActivity {
-        LiveActivity(key: "activity.power", extraWidth: 100) {
+    static func unplugged(level: Int, minutesToEmpty: Int?, hidePercent: Bool) -> LiveActivity {
+        LiveActivity(key: "activity.power",
+                     extraWidth: powerWidth(percent: !hidePercent, time: minutesToEmpty != nil)) {
             Symbol(name: batterySymbol(level), color: .white)
         } trailing: {
-            Percent(level: level, color: .white)
+            PowerValue(level: hidePercent ? nil : level, minutes: minutesToEmpty, color: .white)
         }
     }
 
-    static func lowBattery(level: Int) -> LiveActivity {
-        LiveActivity(key: "activity.lowbattery", extraWidth: 240) {
+    /// 100%, or charging paused at a charge limit (e.g. Optimized Charging at 80%).
+    static func fullyCharged(level: Int, hidePercent: Bool) -> LiveActivity {
+        LiveActivity(key: "activity.power", extraWidth: hidePercent ? 180 : 220) {
             HStack(spacing: 6) {
-                Symbol(name: batterySymbol(level), color: low)
-                Text("Low Battery").font(textFont).foregroundStyle(low).lineLimit(1).fixedSize()
+                Symbol(name: "battery.100.bolt", color: charging)
+                Text(level >= 100 ? "Fully Charged" : "Charged").font(textFont).foregroundStyle(charging)
+                    .lineLimit(1).fixedSize()
             }
         } trailing: {
-            Percent(level: level, color: low)
+            if !hidePercent { Percent(level: level, color: charging) }
+        }
+    }
+
+    static func lowBattery(level: Int, critical: Bool, minutesToEmpty: Int?, hidePercent: Bool) -> LiveActivity {
+        LiveActivity(key: "activity.lowbattery",
+                     extraWidth: 170 + powerWidth(percent: !hidePercent, time: minutesToEmpty != nil) - 30) {
+            HStack(spacing: 6) {
+                Symbol(name: batterySymbol(level), color: low)
+                Text(critical ? "Battery Critical" : "Low Battery").font(textFont).foregroundStyle(low)
+                    .lineLimit(1).fixedSize()
+            }
+        } trailing: {
+            PowerValue(level: hidePercent ? nil : level, minutes: minutesToEmpty, color: low)
+        }
+    }
+
+    static func lowPowerMode(on: Bool) -> LiveActivity {
+        LiveActivity(key: "activity.lowpower", extraWidth: 200) {
+            HStack(spacing: 6) {
+                Symbol(name: "battery.50", color: on ? lowPowerYellow : .white)
+                Text("Low Power").font(textFont).lineLimit(1).fixedSize()
+            }
+        } trailing: {
+            StateLabel(on: on)
+        }
+    }
+
+    // MARK: Focus
+
+    static func focus(on: Bool, name: String?, symbol: String?) -> LiveActivity {
+        let title = name ?? "Focus"
+        // ~7pt per character at 12pt semibold, plus symbol, "On/Off" and padding.
+        let width = min(320, 110 + CGFloat(title.count) * 7)
+        return LiveActivity(key: "activity.focus", extraWidth: width) {
+            HStack(spacing: 6) {
+                Symbol(name: symbol ?? "moon.fill", color: on ? focusIndigo : .white)
+                Text(title).font(textFont).lineLimit(1).fixedSize()
+            }
+        } trailing: {
+            StateLabel(on: on)
+        }
+    }
+
+    // MARK: Lock
+
+    static func unlocked() -> LiveActivity {
+        LiveActivity(key: "activity.unlock", extraWidth: 60) {
+            Symbol(name: "lock.open.fill", color: .white)
+        } trailing: {
+            EmptyView()
         }
     }
 
@@ -62,6 +134,18 @@ enum ActivityViews {
             }
         }
         .dimmed(!connected)
+    }
+
+    static func deviceLowBattery(_ d: BluetoothMonitor.Device, level: Int) -> LiveActivity {
+        LiveActivity(key: "activity.devicebattery", extraWidth: 250) {
+            Symbol(name: d.kind.symbol, color: low)
+        } trailing: {
+            HStack(spacing: 5) {
+                Text(d.name).font(textFont).lineLimit(1).truncationMode(.tail)
+                Text("\(level)%").font(.system(size: 11, weight: .semibold)).monospacedDigit()
+                    .foregroundStyle(low).fixedSize()
+            }
+        }
     }
 
     // MARK: Track change
@@ -119,6 +203,33 @@ private struct Percent: View {
             .monospacedDigit()
             .foregroundStyle(color)
             .fixedSize()
+    }
+}
+
+/// Percent and/or time remaining ("88%  3h 24m"); either may be absent.
+private struct PowerValue: View {
+    let level: Int?
+    let minutes: Int?
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let level { Percent(level: level, color: color) }
+            if let minutes {
+                Text(ActivityViews.duration(minutes: minutes))
+                    .font(.system(size: 11, weight: .medium)).monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.55)).fixedSize()
+            }
+        }
+    }
+}
+
+private struct StateLabel: View {
+    let on: Bool
+
+    var body: some View {
+        Text(on ? "On" : "Off").font(ActivityViews.textFont)
+            .foregroundStyle(.white.opacity(on ? 1 : 0.55)).fixedSize()
     }
 }
 

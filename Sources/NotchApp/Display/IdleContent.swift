@@ -25,10 +25,10 @@ enum IdleState {
         case .none:
             return .none
         case .nowPlaying:
-            return nowPlaying.isPlaying ? .nowPlaying : .none
+            return nowPlaying.showsCollapsedActivity ? .nowPlaying : .none
         case .calendar:
             if let calendar, let e = nextEvent(calendar.events, now: now) { return .event(e) }
-            return nowPlaying.isPlaying ? .nowPlaying : .none
+            return nowPlaying.showsCollapsedActivity ? .nowPlaying : .none
         }
     }
 
