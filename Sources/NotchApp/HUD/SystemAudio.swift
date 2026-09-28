@@ -6,6 +6,8 @@ import Foundation
 final class SystemAudio {
     /// Called on the main queue when the default device's volume or mute changes, from any source.
     var onChange: (() -> Void)?
+    /// Called on the main queue when the default output device changes (not at startup).
+    var onDeviceChange: (() -> Void)?
 
     private let queue = DispatchQueue.main
     private var watchedDevice = AudioObjectID(kAudioObjectUnknown)
@@ -15,7 +17,10 @@ final class SystemAudio {
         self?.coalesceChange()
     }
     private lazy var defaultDeviceListener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-        self?.rewatch()
+        guard let self else { return }
+        let before = self.watchedDevice
+        self.rewatch()
+        if self.watchedDevice != before { self.onDeviceChange?() }
     }
     private static var defaultOutputAddress = AudioObjectPropertyAddress(
         mSelector: kAudioHardwarePropertyDefaultOutputDevice,
@@ -93,6 +98,31 @@ final class SystemAudio {
         return ok
     }
 
+    // MARK: Device info
+
+    /// Name and SF Symbol for the default output device.
+    func outputInfo(_ device: AudioObjectID) -> OutputDeviceInfo {
+        var addr = AudioObjectPropertyAddress(mSelector: kAudioObjectPropertyName,
+                                              mScope: kAudioObjectPropertyScopeGlobal,
+                                              mElement: kAudioObjectPropertyElementMain)
+        var name: Unmanaged<CFString>?
+        var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        let nameStr = AudioObjectGetPropertyData(device, &addr, 0, nil, &size, &name) == noErr
+            ? (name?.takeRetainedValue() as String?) ?? "" : ""
+        let transport = uint32(device, kAudioDevicePropertyTransportType, kAudioObjectPropertyScopeGlobal) ?? 0
+        let source = uint32(device, kAudioDevicePropertyDataSource, kAudioDevicePropertyScopeOutput)
+        return OutputDeviceInfo(name: nameStr, transport: transport, dataSource: source)
+    }
+
+    private func uint32(_ device: AudioObjectID, _ selector: AudioObjectPropertySelector,
+                        _ scope: AudioObjectPropertyScope) -> UInt32? {
+        var addr = AudioObjectPropertyAddress(mSelector: selector, mScope: scope, mElement: kAudioObjectPropertyElementMain)
+        guard AudioObjectHasProperty(device, &addr) else { return nil }
+        var v = UInt32(0)
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        return AudioObjectGetPropertyData(device, &addr, 0, nil, &size, &v) == noErr ? v : nil
+    }
+
     // MARK: Change listening
 
     /// Start listening. Call on the main thread. No callback fires until something changes.
@@ -130,6 +160,42 @@ final class SystemAudio {
             guard let self else { return }
             self.changePending = false
             self.onChange?()
+        }
+    }
+}
+
+struct OutputDeviceInfo: Equatable {
+    let name: String
+    let transport: UInt32
+    let dataSource: UInt32?
+
+    private static let headphonesSource: UInt32 = 0x6864_706E  // 'hdpn'
+
+    /// Built-in speakers: the plain "Volume" HUD (level-based speaker icon, no device name).
+    var isBuiltInSpeaker: Bool {
+        transport == kAudioDeviceTransportTypeBuiltIn && dataSource != Self.headphonesSource
+    }
+
+    var symbol: String {
+        let n = name.lowercased()
+        if n.contains("airpods max") { return "airpodsmax" }
+        if n.contains("airpods pro") { return "airpods.pro" }
+        if n.contains("airpods") { return "airpods" }
+        if n.contains("homepod") { return "homepod.fill" }
+        if n.contains("beats") { return "beats.headphones" }
+        switch transport {
+        case kAudioDeviceTransportTypeBuiltIn:
+            return dataSource == Self.headphonesSource ? "headphones" : "laptopcomputer"
+        case kAudioDeviceTransportTypeHDMI, kAudioDeviceTransportTypeDisplayPort:
+            return "tv"
+        case kAudioDeviceTransportTypeAirPlay:
+            return n.contains("tv") ? "tv" : "hifispeaker.fill"
+        case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE:
+            return n.contains("speaker") || n.contains("soundlink") || n.contains("boom") ? "hifispeaker.fill" : "headphones"
+        default:
+            if n.contains("headphone") || n.contains("headset") || n.contains("buds") { return "headphones" }
+            if n.contains("display") || n.contains("tv") { return "tv" }
+            return "hifispeaker.fill"
         }
     }
 }

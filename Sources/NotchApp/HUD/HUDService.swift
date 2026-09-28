@@ -3,11 +3,16 @@ import Combine
 
 /// Replaces the system volume / brightness / keyboard-backlight HUDs. (Owned by the HUD agent.)
 ///
-/// Media keys are intercepted by `MediaKeyTap`. While `settings.hudEnabled` is on, keys we can
-/// service are swallowed (so the system OSD never appears), the change is applied here, and a notch
-/// HUD is shown. Keys we can't service — or all keys when disabled — pass through to macOS.
+/// Media keys are intercepted by `MediaKeyTap`. While `settings.hudEnabled` and the per-HUD toggle
+/// in `HUDSettings` are on, keys we can service are swallowed (so the system OSD never appears),
+/// the change is applied here, and a notch HUD is shown. Keys we can't service — or keys of a
+/// disabled HUD — pass through to macOS.
+///
+/// Also shown without a key press: volume/mute changed anywhere, the default output device
+/// changing, and user brightness changes from Control Center / System Settings.
 final class HUDService {
     private let context: NotchContext
+    private let hud = HUDSettings.shared
     private let audio = SystemAudio()
     private let display = DisplayBrightness()
     private let keyboard = KeyboardBacklight()
@@ -20,38 +25,48 @@ final class HUDService {
         .keyboard: HUDLevel(kind: .keyboard),
     ]
 
-    /// `settings.hudEnabled`, mirrored for the tap thread.
-    private let enabledLock = NSLock()
-    private var _enabled = true
-    private var enabled: Bool {
-        get { enabledLock.lock(); defer { enabledLock.unlock() }; return _enabled }
-        set { enabledLock.lock(); _enabled = newValue; enabledLock.unlock() }
+    /// What the tap thread needs to decide, mirrored from main-thread state.
+    private struct Gate {
+        var master = true
+        var expanded = false
+        var volume = true, brightness = true, keyboard = true
     }
-
-    /// `model.isExpanded`, mirrored for the tap thread. While open, keys go to macOS so the
-    /// user still gets the system OSD (our HUD has nowhere to draw).
-    private var _expanded = false
-    private var expanded: Bool {
-        get { enabledLock.lock(); defer { enabledLock.unlock() }; return _expanded }
-        set { enabledLock.lock(); _expanded = newValue; enabledLock.unlock() }
+    private let gateLock = NSLock()
+    private var _gate = Gate()
+    private var gate: Gate {
+        get { gateLock.lock(); defer { gateLock.unlock() }; return _gate }
+    }
+    private func updateGate(_ change: (inout Gate) -> Void) {
+        gateLock.lock(); change(&_gate); gateLock.unlock()
     }
 
     private static let step: Float = 1.0 / 16.0
-    private static let hudDuration: TimeInterval = 1.5
-    private static let extraWidth: CGFloat = 220
+    /// Device-change HUD lingers a bit longer than a level change: the name needs reading.
+    private static let announceExtra: TimeInterval = 0.8
+    private var announceUntil = Date.distantPast
+    private var deviceChangeWork: DispatchWorkItem?
 
     init(context: NotchContext) {
         self.context = context
 
+        // While the notch is open, keys go to macOS so the user still gets the system OSD
+        // (our HUD has nowhere to draw).
         context.settings.$hudEnabled
-            .sink { [weak self] on in self?.enabled = on }
+            .sink { [weak self] on in self?.updateGate { $0.master = on } }
             .store(in: &cancellables)
         context.model.$isExpanded
-            .sink { [weak self] open in self?.expanded = open }
+            .sink { [weak self] open in self?.updateGate { $0.expanded = open } }
             .store(in: &cancellables)
+        hud.$volumeEnabled.sink { [weak self] on in self?.updateGate { $0.volume = on } }.store(in: &cancellables)
+        hud.$brightnessEnabled.sink { [weak self] on in self?.updateGate { $0.brightness = on } }.store(in: &cancellables)
+        hud.$keyboardEnabled.sink { [weak self] on in self?.updateGate { $0.keyboard = on } }.store(in: &cancellables)
 
+        refreshDevice()
         audio.onChange = { [weak self] in self?.volumeChangedExternally() }
+        audio.onDeviceChange = { [weak self] in self?.outputDeviceChanged() }
         audio.startWatching()
+
+        display.observeUserChanges { [weak self] value in self?.brightnessChangedExternally(value) }
 
         let tap = MediaKeyTap { [weak self] press in self?.handle(press) ?? false }
         self.tap = tap
@@ -60,10 +75,17 @@ final class HUDService {
 
     // MARK: Key handling (tap thread)
 
-    /// Applies the key's effect. Returns true only when the change was actually made.
+    /// Applies the key's effect. Returns true only when the change was actually made; anything
+    /// else (disabled, unsupported device, API failure) returns false and macOS handles the key.
     private func handle(_ press: MediaKeyPress) -> Bool {
-        guard enabled, !expanded else { return false }
+        let g = gate
+        guard g.master, !g.expanded else { return false }
         let step = press.fine ? Self.step / 4 : Self.step
+        switch press.key {
+        case .volumeUp, .volumeDown, .mute: guard g.volume else { return false }
+        case .brightnessUp, .brightnessDown: guard g.brightness else { return false }
+        case .illuminationUp, .illuminationDown: guard g.keyboard else { return false }
+        }
         switch press.key {
         case .volumeUp: return changeVolume(by: step)
         case .volumeDown: return changeVolume(by: -step)
@@ -117,15 +139,45 @@ final class HUDService {
         return true
     }
 
-    // MARK: External volume changes (main thread)
+    // MARK: External changes (main thread)
+
+    private var wantsExternal: Bool { context.settings.hudEnabled && !context.model.isExpanded }
 
     private func volumeChangedExternally() {
-        guard context.settings.hudEnabled, let dev = audio.defaultDevice, let v = audio.volume(dev) else { return }
+        guard wantsExternal, hud.volumeEnabled, let dev = audio.defaultDevice, let v = audio.volume(dev) else { return }
         let state = levels[.volume]!
         let muted = audio.isMuted(dev)
         // Our own key presses echo back here; skip if nothing new.
         if abs(state.level - Double(v)) < 0.0005, state.muted == muted { return }
         present(.volume, level: Double(v), muted: muted)
+    }
+
+    private func refreshDevice() {
+        levels[.volume]!.device = audio.defaultDevice.map { audio.outputInfo($0) }
+    }
+
+    /// AirPods connecting can flip the default device more than once; show only where it settles.
+    private func outputDeviceChanged() {
+        deviceChangeWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            let before = self.levels[.volume]!.device
+            self.refreshDevice()
+            guard let dev = self.audio.defaultDevice, let info = self.levels[.volume]!.device, info != before,
+                  self.wantsExternal, self.hud.volumeEnabled, self.hud.showDeviceChanges else { return }
+            self.announceUntil = Date().addingTimeInterval(self.hud.duration + Self.announceExtra)
+            self.present(.volume, level: Double(self.audio.volume(dev) ?? 0), muted: self.audio.isMuted(dev))
+        }
+        deviceChangeWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
+    }
+
+    private func brightnessChangedExternally(_ value: Float) {
+        guard wantsExternal, hud.brightnessEnabled else { return }
+        if abs(levels[.brightness]!.level - Double(value)) < 0.0005, context.model.activity?.key == HUDKind.brightness.key {
+            return
+        }
+        present(.brightness, level: Double(value), muted: false)
     }
 
     // MARK: Presentation
@@ -137,14 +189,18 @@ final class HUDService {
     /// Main thread.
     private func present(_ kind: HUDKind, level: Double, muted: Bool) {
         guard let state = levels[kind] else { return }
+        let announcing = kind == .volume && Date() < announceUntil
         state.level = level
         state.muted = muted
+        state.announcing = announcing
         let model = context.model
         guard !model.isExpanded else { return }
-        model.present(LiveActivity(key: kind.key, extraWidth: Self.extraWidth) {
-            HUDIcon(state: state)
+        let duration = hud.duration + (announcing ? Self.announceExtra : 0)
+        model.present(LiveActivity(key: kind.key,
+                                   extraWidth: HUDLayout.extraWidth(settings: hud, forceLabel: announcing)) {
+            HUDLeading(state: state)
         } trailing: {
-            HUDBar(state: state)
-        }, duration: Self.hudDuration)
+            HUDTrailing(state: state)
+        }, duration: duration)
     }
 }

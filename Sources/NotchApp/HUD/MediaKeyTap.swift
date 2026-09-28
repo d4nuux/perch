@@ -20,7 +20,8 @@ struct MediaKeyPress {
     let fine: Bool
 }
 
-/// CGEventTap on NX_SYSDEFINED events, running on its own thread so a busy main thread can't
+/// CGEventTap on NX_SYSDEFINED events (plus keyDown/keyUp for the brightness key codes some
+/// keyboards send instead — see `keyCodeKeys`), running on its own thread so a busy main thread can't
 /// time the tap out (which would lag every key system-wide).
 ///
 /// `handler` runs on the tap thread and returns true to swallow the event. Anything it doesn't
@@ -32,6 +33,16 @@ final class MediaKeyTap {
     private var retryTimer: Timer?
     /// Key codes whose key-down we swallowed; their key-up is swallowed too. Tap thread only.
     private var swallowed = Set<Int>()
+    /// Regular key codes some keyboards emit for the brightness keys instead of (or alongside)
+    /// NX_SYSDEFINED — e.g. Apple Silicon / Magic Keyboard report 144/145 in keyDown events.
+    private static let keyCodeKeys: [Int64: MediaKey] = [144: .brightnessUp, 145: .brightnessDown]
+    /// Key-code keys whose key-down we swallowed. Tap thread only.
+    private var swallowedKeyCodes = Set<Int64>()
+    /// Last decision per key and which path produced it. If a keyboard sends both an NX_SYSDEFINED
+    /// event and a keyDown for one press, the second copy reuses the decision instead of stepping
+    /// twice. Tap thread only.
+    private var lastDecision: [MediaKey: (time: UInt64, viaKeyCode: Bool, swallowed: Bool)] = [:]
+    private static let duplicateWindowNs: UInt64 = 25_000_000
 
     private static let sysDefinedType = CGEventType(rawValue: 14)! // NX_SYSDEFINED
     private static let auxControlSubtype: Int16 = 8                 // NX_SUBTYPE_AUX_CONTROL_BUTTONS
@@ -56,12 +67,16 @@ final class MediaKeyTap {
 
     private func createTap() -> Bool {
         guard tap == nil else { return true }
-        let mask = CGEventMask(1) << CGEventMask(Self.sysDefinedType.rawValue)
+        let sysMask = CGEventMask(1) << CGEventMask(Self.sysDefinedType.rawValue)
+        let keyMask = CGEventMask(1) << CGEventMask(CGEventType.keyDown.rawValue)
+            | CGEventMask(1) << CGEventMask(CGEventType.keyUp.rawValue)
         let refcon = Unmanaged.passUnretained(self).toOpaque()
-        guard let port = CGEvent.tapCreate(
-            tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
-            eventsOfInterest: mask, callback: mediaKeyTapCallback, userInfo: refcon
-        ) else { return false }
+        func make(_ mask: CGEventMask) -> CFMachPort? {
+            CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
+                              eventsOfInterest: mask, callback: mediaKeyTapCallback, userInfo: refcon)
+        }
+        // If keyboard events can't be tapped, keep the media-key tap alone.
+        guard let port = make(sysMask | keyMask) ?? make(sysMask) else { return false }
         tap = port
 
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, port, 0)
@@ -84,6 +99,8 @@ final class MediaKeyTap {
             return Unmanaged.passUnretained(event)
         case Self.sysDefinedType:
             break
+        case .keyDown, .keyUp:
+            return handleKeyCode(type: type, event: event)
         default:
             return Unmanaged.passUnretained(event)
         }
@@ -107,12 +124,43 @@ final class MediaKeyTap {
         let mods = event.flags
         let press = MediaKeyPress(key: key, isDown: true, isRepeat: flags & 0x1 != 0,
                                   fine: mods.contains(.maskAlternate) && mods.contains(.maskShift))
-        if handler(press) {
+        if decide(press, viaKeyCode: false) {
             swallowed.insert(code)
             return nil
         }
         swallowed.remove(code)
         return Unmanaged.passUnretained(event)
+    }
+
+    private func handleKeyCode(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        let code = event.getIntegerValueField(.keyboardEventKeycode)
+        guard let key = Self.keyCodeKeys[code] else { return Unmanaged.passUnretained(event) }
+        if type == .keyUp {
+            return swallowedKeyCodes.remove(code) != nil ? nil : Unmanaged.passUnretained(event)
+        }
+        let mods = event.flags
+        let press = MediaKeyPress(key: key, isDown: true,
+                                  isRepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0,
+                                  fine: mods.contains(.maskAlternate) && mods.contains(.maskShift))
+        if decide(press, viaKeyCode: true) {
+            swallowedKeyCodes.insert(code)
+            return nil
+        }
+        swallowedKeyCodes.remove(code)
+        return Unmanaged.passUnretained(event)
+    }
+
+    /// Runs `handler` unless this is the other path's copy of a press we just decided on.
+    private func decide(_ press: MediaKeyPress, viaKeyCode: Bool) -> Bool {
+        let now = DispatchTime.now().uptimeNanoseconds
+        if let last = lastDecision[press.key], last.viaKeyCode != viaKeyCode,
+           now &- last.time < Self.duplicateWindowNs {
+            lastDecision[press.key] = nil  // pair consumed
+            return last.swallowed
+        }
+        let swallow = handler(press)
+        lastDecision[press.key] = (now, viaKeyCode, swallow)
+        return swallow
     }
 }
 
