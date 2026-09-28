@@ -1,3 +1,4 @@
+import os
 import AppKit
 import ApplicationServices
 
@@ -54,13 +55,23 @@ final class MediaKeyTap {
     /// Call on the main thread. Never prompts (onboarding / Settings › Permissions request
     /// Accessibility); retries every few seconds until the process is trusted and the tap exists.
     /// Once it exists, a health check (every 30s and on wake) re-creates it if it died.
+    /// AXIsProcessTrusted, logging each change so permission problems show up in Console.
+    private func trusted() -> Bool {
+        let t = AXIsProcessTrusted()
+        if t != loggedTrust {
+            loggedTrust = t
+            Self.log.notice("accessibility trusted: \(t, privacy: .public)")
+        }
+        return t
+    }
+
     func start() {
         guard !started else { return }
         started = true
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in self?.checkHealth() }
-        if AXIsProcessTrusted(), createTap() { schedule(health: true) } else { schedule(health: false) }
+        if trusted(), createTap() { schedule(health: true) } else { schedule(health: false) }
     }
 
     private var started = false
@@ -94,7 +105,7 @@ final class MediaKeyTap {
             }
             destroyTap()
         }
-        if AXIsProcessTrusted(), createTap() { schedule(health: true) } else { schedule(health: false) }
+        if trusted(), createTap() { schedule(health: true) } else { schedule(health: false) }
     }
 
     private func currentTap() -> CFMachPort? {
@@ -115,6 +126,10 @@ final class MediaKeyTap {
         thread = nil
     }
 
+    private static let log = Logger(subsystem: "NotchApp", category: "MediaKeyTap")
+    private var loggedTrust: Bool?
+
+
     private func createTap() -> Bool {
         guard currentTap() == nil else { return true }
         let sysMask = CGEventMask(1) << CGEventMask(Self.sysDefinedType.rawValue)
@@ -126,7 +141,11 @@ final class MediaKeyTap {
                               eventsOfInterest: mask, callback: mediaKeyTapCallback, userInfo: refcon)
         }
         // If keyboard events can't be tapped, keep the media-key tap alone.
-        guard let port = make(sysMask | keyMask) ?? make(sysMask) else { return false }
+        guard let port = make(sysMask | keyMask) ?? make(sysMask) else {
+            Self.log.error("tapCreate failed although trusted")
+            return false
+        }
+        Self.log.notice("media key tap created")
         lock.lock(); tap = port; lock.unlock()
 
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, port, 0)
