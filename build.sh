@@ -19,7 +19,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleIdentifier</key><string>local.notchapp</string>
   <key>CFBundleExecutable</key><string>NotchApp</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.1</string>
+  <key>CFBundleShortVersionString</key><string>0.2</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSUIElement</key><true/>
   <key>NSCalendarsFullAccessUsageDescription</key><string>Shows your upcoming events in the notch.</string>
