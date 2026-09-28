@@ -1,0 +1,69 @@
+import CoreGraphics
+import Foundation
+import ObjectiveC
+
+/// Built-in display brightness through the private DisplayServices framework.
+final class DisplayBrightness {
+    private typealias GetFn = @convention(c) (CGDirectDisplayID, UnsafeMutablePointer<Float>) -> Int32
+    private typealias SetFn = @convention(c) (CGDirectDisplayID, Float) -> Int32
+    private let getFn: GetFn?
+    private let setFn: SetFn?
+
+    init() {
+        let h = dlopen("/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices", RTLD_NOW)
+        getFn = dlsym(h, "DisplayServicesGetBrightness").map { unsafeBitCast($0, to: GetFn.self) }
+        setFn = dlsym(h, "DisplayServicesSetBrightness").map { unsafeBitCast($0, to: SetFn.self) }
+    }
+
+    private var display: CGDirectDisplayID { CGMainDisplayID() }
+
+    /// nil when the main display isn't controllable (e.g. an external monitor, lid closed).
+    var brightness: Float? {
+        guard let getFn else { return nil }
+        var v: Float = -1
+        guard getFn(display, &v) == 0, v >= 0, v <= 1 else { return nil }
+        return v
+    }
+
+    func set(_ value: Float) -> Bool {
+        guard let setFn else { return false }
+        return setFn(display, min(max(value, 0), 1)) == 0
+    }
+}
+
+/// Keyboard backlight through CoreBrightness' `KeyboardBrightnessClient` (private ObjC class).
+final class KeyboardBacklight {
+    private typealias GetFn = @convention(c) (AnyObject, Selector, UInt64) -> Float
+    private typealias SetFn = @convention(c) (AnyObject, Selector, Float, UInt64) -> Bool
+    private let client: NSObject?
+    private let keyboardID: UInt64?
+    private let getSel = NSSelectorFromString("brightnessForKeyboard:")
+    private let setSel = NSSelectorFromString("setBrightness:forKeyboard:")
+
+    init() {
+        dlopen("/System/Library/PrivateFrameworks/CoreBrightness.framework/CoreBrightness", RTLD_NOW)
+        let idsSel = NSSelectorFromString("copyKeyboardBacklightIDs")
+        guard let cls = NSClassFromString("KeyboardBrightnessClient") as? NSObject.Type,
+              cls.instancesRespond(to: getSel), cls.instancesRespond(to: setSel),
+              cls.instancesRespond(to: idsSel) else {
+            client = nil; keyboardID = nil; return
+        }
+        let c = cls.init()
+        let ids = c.perform(idsSel)?.takeRetainedValue() as? [NSNumber]
+        client = c
+        keyboardID = ids?.first?.uint64Value
+    }
+
+    var brightness: Float? {
+        guard let client, let keyboardID else { return nil }
+        let fn = unsafeBitCast(client.method(for: getSel), to: GetFn.self)
+        let v = fn(client, getSel, keyboardID)
+        return v.isFinite && v >= 0 && v <= 1 ? v : nil
+    }
+
+    func set(_ value: Float) -> Bool {
+        guard let client, let keyboardID else { return false }
+        let fn = unsafeBitCast(client.method(for: setSel), to: SetFn.self)
+        return fn(client, setSel, min(max(value, 0), 1), keyboardID)
+    }
+}
