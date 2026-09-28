@@ -162,7 +162,11 @@ final class CalendarService: ObservableObject {
         timer = t
 
         if options.showWeather { WeatherService.shared.start() }
-        checkAccess(prompt: true)
+        // No prompt at launch: onboarding / the Calendar tab button ask. Pick up grants right away.
+        observers.append((nc, nc.addObserver(forName: .notchPermissionsChanged, object: nil, queue: .main) {
+            [weak self] _ in self?.tick()
+        }))
+        checkAccess(prompt: false)
     }
 
     private func stop() {

@@ -51,11 +51,10 @@ final class MediaKeyTap {
         self.handler = handler
     }
 
-    /// Call on the main thread. Prompts for Accessibility once, then retries every few seconds
-    /// until the process is trusted and the tap exists.
+    /// Call on the main thread. Never prompts (onboarding / Settings › Permissions request
+    /// Accessibility); retries every few seconds until the process is trusted and the tap exists.
     func start() {
-        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        if AXIsProcessTrustedWithOptions(opts), createTap() { return }
+        if AXIsProcessTrusted(), createTap() { return }
         retryTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] timer in
             guard let self else { timer.invalidate(); return }
             if AXIsProcessTrusted(), self.createTap() {

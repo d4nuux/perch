@@ -20,12 +20,15 @@ final class Battery: ObservableObject {
                   d[kIOPSTypeKey] as? String == kIOPSInternalBatteryType else { continue }
             let cur = d[kIOPSCurrentCapacityKey] as? Int ?? 0
             let max = d[kIOPSMaxCapacityKey] as? Int ?? 100
-            hasBattery = true
-            level = max > 0 ? cur * 100 / max : cur
-            isCharging = (d[kIOPSIsChargingKey] as? Bool ?? false)
+            // Assign only on change: every @Published write re-renders observers.
+            let lvl = max > 0 ? cur * 100 / max : cur
+            let charging = (d[kIOPSIsChargingKey] as? Bool ?? false)
                 || (d[kIOPSPowerSourceStateKey] as? String == kIOPSACPowerValue)
+            if !hasBattery { hasBattery = true }
+            if level != lvl { level = lvl }
+            if isCharging != charging { isCharging = charging }
             return
         }
-        hasBattery = false
+        if hasBattery { hasBattery = false }
     }
 }

@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import CoreBluetooth
 
 /// Charging, battery, Low Power Mode, Focus, Bluetooth device, unlock and track-change live
 /// activities. (Owned by the Activities agent.)
@@ -41,15 +42,19 @@ final class ActivityService {
 
         bluetooth.onEvent = { [weak self] event in self?.handleBluetooth(event) }
         // Start IOBluetooth lazily: touching it triggers the Bluetooth TCC prompt, so don't do it
-        // while the feature is switched off.
+        // while the feature is switched off, or before the user has decided (onboarding asks).
         context.settings.$bluetoothActivity
             .removeDuplicates()
             .filter { $0 }
             .first()
             .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.startBluetoothIfAllowed() }
+            .store(in: &cancellables)
+        NotificationCenter.default.publisher(for: .notchPermissionsChanged)
+            .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.bluetooth.start()
-                self?.updateDeviceBatteryTimer()
+                guard let self, self.context.settings.bluetoothActivity else { return }
+                self.startBluetoothIfAllowed()
             }
             .store(in: &cancellables)
 
@@ -60,6 +65,12 @@ final class ActivityService {
             .store(in: &cancellables)
 
         track = TrackChangeMonitor(nowPlaying: context.nowPlaying) { [weak self] in self?.handleTrackChange() }
+    }
+
+    private func startBluetoothIfAllowed() {
+        guard CBManager.authorization != .notDetermined else { return }
+        bluetooth.start()
+        updateDeviceBatteryTimer()
     }
 
     // MARK: Charging / battery

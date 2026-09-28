@@ -1,7 +1,7 @@
 import CoreLocation
 
-/// One-shot location fixes on demand (no continuous updates). Authorization is requested lazily,
-/// the first time a feature (weather, time to leave) actually needs a location. Main thread only.
+/// One-shot location fixes on demand (no continuous updates). Never requests authorization itself
+/// (onboarding / Settings › Permissions do); callers get nil until access is granted. Main thread only.
 final class LocationProvider: NSObject, CLLocationManagerDelegate {
     static let shared = LocationProvider()
 
@@ -9,10 +9,15 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
         let m = CLLocationManager()
         m.delegate = self
         m.desiredAccuracy = kCLLocationAccuracyKilometer
+        lastStatus = m.authorizationStatus
         return m
     }()
     private var waiters: [(CLLocation?) -> Void] = []
     private(set) var last: CLLocation?
+    /// Called on main when location access goes from undecided to granted (e.g. via onboarding),
+    /// so features that fell back without a location can refresh.
+    var onAuthorized: [() -> Void] = []
+    private var lastStatus: CLAuthorizationStatus?
 
     var isDenied: Bool {
         let s = manager.authorizationStatus
@@ -25,8 +30,8 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
         waiters.append(completion)
         guard waiters.count == 1 else { return } // a request is already in flight
         switch manager.authorizationStatus {
-        case .notDetermined: manager.requestWhenInUseAuthorization() // continues in delegate
-        case .denied, .restricted: finish(nil)
+        // Never prompt from a background feature: onboarding / Settings › Permissions ask.
+        case .notDetermined, .denied, .restricted: finish(nil)
         default: manager.requestLocation()
         }
     }
@@ -39,6 +44,12 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        let was = lastStatus
+        lastStatus = status
+        if was == .notDetermined, status == .authorizedAlways || status == .authorized {
+            DispatchQueue.main.async { [weak self] in self?.onAuthorized.forEach { $0() } }
+        }
         guard !waiters.isEmpty else { return }
         switch manager.authorizationStatus {
         case .notDetermined: break

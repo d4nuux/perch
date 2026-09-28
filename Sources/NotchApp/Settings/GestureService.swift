@@ -95,17 +95,20 @@ final class GestureService {
     private func perform(axis: Axis, at event: NSEvent) -> Bool {
         let model = context.model
         let t = CGFloat(prefs.sensitivity.rawValue)
+        // Multi-display: act on the panel under the fingers, not on whichever notch is open.
+        let display = event.window?.screen?.displayID
+        let isOpen = display.map { model.isOpen(on: $0) } ?? model.isExpanded
         switch axis {
         case .vertical:
-            if !model.isExpanded, accum.dy >= t {
-                model.open()
+            if !isOpen, accum.dy >= t {
+                model.open(on: display)
                 return true
             }
-            if !model.isExpanded, accum.dy <= -t, prefs.swipeToDismiss, let activity = model.activity {
+            if !isOpen, accum.dy <= -t, prefs.swipeToDismiss, let activity = model.activity {
                 model.dismissActivity(key: activity.key)
                 return true
             }
-            if model.isExpanded, accum.dy <= -t {
+            if isOpen, accum.dy <= -t {
                 // Scrolling a list (e.g. the day's events) must not close the notch.
                 if isOverScrollView(event, axis: .vertical) { return false }
                 model.suppressHoverOpen = true
@@ -116,7 +119,7 @@ final class GestureService {
             guard abs(accum.dx) >= t else { return false }
             // Fingers moving left = forward.
             let forward = accum.dx < 0
-            if model.isExpanded {
+            if isOpen {
                 if isOverScrollView(event, axis: .horizontal) { return false }
                 let before = model.tab
                 model.selectTab(offset: forward ? 1 : -1)

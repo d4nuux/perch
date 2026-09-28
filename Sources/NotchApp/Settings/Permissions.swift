@@ -99,6 +99,11 @@ enum PermissionState: Equatable {
     }
 }
 
+extension Notification.Name {
+    /// Posted (main thread) when PermissionCenter sees any permission state change.
+    static let notchPermissionsChanged = Notification.Name("NotchApp.permissionsChanged")
+}
+
 /// Live permission status. Event-driven: refreshes when the app becomes active, when a settings
 /// window becomes key, on accessibility-trust changes and after each request — no polling.
 final class PermissionCenter: NSObject, ObservableObject, CBCentralManagerDelegate, CLLocationManagerDelegate {
@@ -132,7 +137,11 @@ final class PermissionCenter: NSObject, ObservableObject, CBCentralManagerDelega
     func refresh() {
         var next: [Permission: PermissionState] = [:]
         for p in Permission.allCases { next[p] = Self.query(p) }
-        if next != states { states = next }
+        guard next != states else { return }
+        let first = states.isEmpty
+        states = next
+        // Services never prompt on their own; they start using a permission once it's granted.
+        if !first { NotificationCenter.default.post(name: .notchPermissionsChanged, object: nil) }
     }
 
     private static func query(_ p: Permission) -> PermissionState {
@@ -288,7 +297,7 @@ struct PermissionRow: View {
                 Circle().fill(state.color).frame(width: 7, height: 7)
                 Text(state.label).font(.caption).foregroundStyle(.secondary)
             }
-            if promptWhenUndecided, permission.canRequest, state == .notDetermined || state == .notAllowed {
+            if permission.canRequest, state == .notDetermined || (promptWhenUndecided && state == .notAllowed) {
                 Button("Allow") { center.request(permission) }.controlSize(.small)
             } else if !promptWhenUndecided || state != .granted {
                 Button("Open Settings") { center.openSettings(permission) }.controlSize(.small)

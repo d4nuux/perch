@@ -53,7 +53,7 @@ struct Equalizer: View {
                 if settings.useRealAudio && visualizer.isLive {
                     shape(Self.resample(visualizer.levels, to: n), size: geo.size)
                 } else {
-                    TimelineView(.animation) { ctx in
+                    TimelineView(.animation(minimumInterval: 1.0 / 30)) { ctx in // not display-rate
                         shape(Self.synthetic(n, t: ctx.date.timeIntervalSinceReferenceDate), size: geo.size)
                     }
                 }

@@ -69,6 +69,8 @@ final class WeatherService: ObservableObject {
             .sink { [weak self] _ in self?.refresh(force: false) }
             .store(in: &cancellables)
 
+        LocationProvider.shared.onAuthorized.append { [weak self] in self?.refresh(force: true) }
+
         let s = WeatherSettings.shared
         s.$useCurrentLocation.removeDuplicates().dropFirst()
             .receive(on: RunLoop.main)
