@@ -23,6 +23,7 @@ enum URLRouter {
             case "shelf": tab = .shelf
             default: return false
             }
+            model.holdOpenUntil = Date().addingTimeInterval(5)
             model.open(tab: tab)
         case "close":
             model?.close()

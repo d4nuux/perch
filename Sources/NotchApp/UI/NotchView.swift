@@ -30,34 +30,63 @@ struct NotchView: View {
     @EnvironmentObject var model: NotchModel
     @EnvironmentObject var nowPlaying: NowPlaying
     @EnvironmentObject var shelf: Shelf
+    @EnvironmentObject var calendar: CalendarService
+    @EnvironmentObject var display: DisplaySettings
+    @EnvironmentObject var screen: NotchScreen
+
+    /// Content appears once the shape has started growing (~80ms), and leaves quickly on close.
+    static let expandedTransition = AnyTransition.asymmetric(
+        insertion: .opacity.combined(with: .scale(scale: 0.94, anchor: .top))
+            .animation(.spring(response: 0.34, dampingFraction: 0.86).delay(0.08)),
+        removal: .opacity.animation(.easeIn(duration: 0.09))
+    )
+    static let collapsedTransition = AnyTransition.asymmetric(
+        insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.1)),
+        removal: .opacity.animation(.easeIn(duration: 0.1))
+    )
 
     var body: some View {
-        let size = model.currentSize(isPlaying: nowPlaying.isPlaying)
-        let top: CGFloat = model.isExpanded ? 14 : 6
-        let bottom: CGFloat = model.isExpanded ? 28 : 12
+        let open = model.isOpen(on: screen.displayID)
+        let notch = screen.notchSize
+        let idle = IdleState.resolve(display.idleContent, nowPlaying: nowPlaying, calendar: calendar)
+        let size = model.size(notch: notch, expanded: open, idleExtra: idle.extraWidth)
+        // Simulated notch (no hardware cutout): flat top flush with the screen edge, pill-round bottom.
+        let top: CGFloat = open ? 14 : (screen.isSimulated ? 0 : 6)
+        let bottom: CGFloat = open ? 28 : (screen.isSimulated ? min(notch.height / 2, 16) : 12)
+        let grow: CGFloat = display.hoverGrow && screen.isHovering && !open ? 1.04 : 1
 
         ZStack(alignment: .top) {
             NotchShape(topRadius: top, bottomRadius: bottom)
                 .fill(Color.black)
                 .frame(width: size.width + top * 2, height: size.height)
-                .shadow(color: .black.opacity(model.isExpanded ? 0.5 : 0), radius: 12, y: 4)
+                .shadow(color: .black.opacity(open ? 0.45 : 0), radius: open ? 18 : 0, y: open ? 8 : 0)
 
             Group {
-                if model.isExpanded {
+                if open {
+                    // Laid out at its final size so nothing reflows while the shape springs open.
                     ExpandedView()
-                        .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .top)))
+                        .frame(width: NotchModel.expandedSize.width, height: NotchModel.expandedSize.height)
+                        .transition(Self.expandedTransition)
                 } else if let activity = model.activity {
-                    ActivityView(activity: activity, notchSize: model.notchSize)
-                        .transition(.opacity)
-                } else if nowPlaying.isPlaying {
-                    CollapsedActivity(notchWidth: model.notchSize.width)
-                        .transition(.opacity)
+                    ActivityView(activity: activity, notchSize: notch)
+                        .transition(Self.collapsedTransition)
+                } else {
+                    switch idle {
+                    case .nowPlaying:
+                        CollapsedActivity(notchWidth: notch.width).transition(Self.collapsedTransition)
+                    case .event(let e):
+                        CollapsedEventView(event: e, notchWidth: notch.width).transition(Self.collapsedTransition)
+                    case .none:
+                        EmptyView()
+                    }
                 }
             }
-            .frame(width: size.width, height: size.height)
+            .frame(width: size.width, height: size.height, alignment: .top)
+            .clipped()
         }
+        .scaleEffect(grow, anchor: .top)
         .contentShape(Rectangle())
-        .onTapGesture { if !model.isExpanded { model.open() } }
+        .onTapGesture { if !open { model.open(on: screen.displayID) } }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onDrop(of: [.fileURL], isTargeted: $model.dropTargeted) { providers in
             model.tab = .shelf
@@ -98,17 +127,22 @@ struct ActivityView: View {
 
 struct ExpandedView: View {
     @EnvironmentObject var model: NotchModel
+    @EnvironmentObject var screen: NotchScreen
 
     var body: some View {
         VStack(spacing: 12) {
             Header()
-            switch model.tab {
-            case .home: HomeTab()
-            case .calendar: CalendarTab()
-            case .shelf: ShelfTab()
+            // Fixed-size slot + crossfade: switching tabs never changes the layout around it.
+            ZStack(alignment: .top) {
+                switch model.tab {
+                case .home: HomeTab().transition(.opacity)
+                case .calendar: CalendarTab().transition(.opacity)
+                case .shelf: ShelfTab().transition(.opacity)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .padding(.top, max(model.notchSize.height - 24, 6))
+        .padding(.top, max(screen.notchSize.height - 24, 6))
         .padding(.horizontal, 22)
         .padding(.bottom, 16)
         .frame(maxHeight: .infinity, alignment: .top)
@@ -119,13 +153,14 @@ struct ExpandedView: View {
 struct Header: View {
     @EnvironmentObject var model: NotchModel
     @EnvironmentObject var battery: Battery
+    @EnvironmentObject var screen: NotchScreen
 
     var body: some View {
         HStack(spacing: 6) {
-            TabButton(icon: "house.fill", selected: model.tab == .home) { model.tab = .home }
-            TabButton(icon: "calendar", selected: model.tab == .calendar) { model.tab = .calendar }
-            TabButton(icon: "tray.fill", selected: model.tab == .shelf) { model.tab = .shelf }
-            Spacer(minLength: model.notchSize.width)
+            TabButton(icon: "house.fill", selected: model.tab == .home) { select(.home) }
+            TabButton(icon: "calendar", selected: model.tab == .calendar) { select(.calendar) }
+            TabButton(icon: "tray.fill", selected: model.tab == .shelf) { select(.shelf) }
+            Spacer(minLength: screen.notchSize.width)
             if battery.hasBattery {
                 HStack(spacing: 4) {
                     Text("\(battery.level)%").font(.system(size: 11, weight: .medium)).monospacedDigit()
@@ -143,6 +178,10 @@ struct Header: View {
             .buttonStyle(.plain).foregroundStyle(.white.opacity(0.5))
         }
         .frame(height: 24)
+    }
+
+    private func select(_ tab: NotchModel.Tab) {
+        withAnimation(NotchModel.tabAnimation) { model.tab = tab }
     }
 
     private var batterySymbol: String {

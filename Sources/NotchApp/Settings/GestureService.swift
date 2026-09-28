@@ -45,7 +45,7 @@ final class GestureService {
 
     private func handle(_ event: NSEvent) -> NSEvent? {
         guard context.settings.gesturesEnabled,
-              event.window === context.panel,
+              event.window is NotchPanel,
               event.hasPreciseScrollingDeltas else { return event }
 
         // Momentum after the fingers lift: never an action; swallow it if this gesture acted.
@@ -134,7 +134,7 @@ final class GestureService {
     /// True if the cursor is over a scroll view that can scroll along `axis` (e.g. the shelf, the
     /// calendar's event list), so swipes there scroll content instead of switching tabs / closing.
     private func isOverScrollView(_ event: NSEvent, axis: Axis) -> Bool {
-        guard let content = context.panel.contentView,
+        guard let content = event.window?.contentView,
               let frameView = content.superview else { return false }
         let point = frameView.convert(event.locationInWindow, from: nil)
         var view = content.hitTest(point)

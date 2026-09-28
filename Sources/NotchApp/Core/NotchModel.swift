@@ -1,3 +1,4 @@
+import CoreGraphics
 import SwiftUI
 
 /// Shared UI state for the notch. Feature modules talk to the notch only through this type.
@@ -9,16 +10,27 @@ final class NotchModel: ObservableObject {
     @Published var dropTargeted = false
     /// Set when a gesture closes the notch under the cursor; hover won't reopen until the mouse leaves.
     var suppressHoverOpen = false
+    /// Opened without the pointer (URL scheme, menu bar): don't auto-collapse before this time
+    /// unless the pointer visits and leaves the notch.
+    var holdOpenUntil: Date?
     /// True while something asks for quiet (e.g. user is in a meeting and chose "disable activities
     /// during events"). Non-essential activities (activity.*) should not present while set; HUDs still do.
     @Published var quietMode = false
+    /// Notch size of the primary panel's screen (each panel also has its own `NotchScreen.notchSize`).
     @Published var notchSize = CGSize(width: 190, height: 32)
+    /// Display whose notch is open. Only one panel is expanded at a time (with "All displays").
+    @Published var expandedDisplay: CGDirectDisplayID?
+    /// Set by the controller: display under/nearest the pointer, and the primary panel's display.
+    /// `open()` without an explicit display opens there.
+    var pointerDisplay: CGDirectDisplayID?
+    var primaryDisplay: CGDirectDisplayID?
     /// The live activity currently shown around the closed notch (HUDs, charging, etc.).
     @Published private(set) var activity: LiveActivity?
 
     static let expandedSize = CGSize(width: 600, height: 170)
-    static let openAnimation = Animation.spring(response: 0.38, dampingFraction: 0.78)
-    static let closeAnimation = Animation.spring(response: 0.38, dampingFraction: 0.85)
+    static let openAnimation = Animation.spring(response: 0.42, dampingFraction: 0.76)
+    static let closeAnimation = Animation.spring(response: 0.34, dampingFraction: 0.9)
+    static let tabAnimation = Animation.easeInOut(duration: 0.18)
 
     private var dismissWork: DispatchWorkItem?
     private var deadline: Date?
@@ -26,18 +38,37 @@ final class NotchModel: ObservableObject {
     private var suspended: (activity: LiveActivity, remaining: TimeInterval?)?
 
     func currentSize(isPlaying: Bool) -> CGSize {
-        if isExpanded { return Self.expandedSize }
+        size(notch: notchSize, expanded: isExpanded, idleExtra: isPlaying ? 84 : 0)
+    }
+
+    /// Shape size for a panel with the given notch. `idleExtra` = width added by idle content.
+    func size(notch: CGSize, expanded: Bool, idleExtra: CGFloat) -> CGSize {
+        if expanded { return Self.expandedSize }
         if let a = activity {
-            return CGSize(width: notchSize.width + a.extraWidth, height: notchSize.height + a.belowHeight)
+            return CGSize(width: notch.width + a.extraWidth, height: notch.height + a.belowHeight)
         }
-        return CGSize(width: notchSize.width + (isPlaying ? 84 : 0), height: notchSize.height)
+        return CGSize(width: notch.width + idleExtra, height: notch.height)
+    }
+
+    /// True if the panel on `display` should render expanded.
+    func isOpen(on display: CGDirectDisplayID) -> Bool {
+        isExpanded && (expandedDisplay ?? primaryDisplay ?? display) == display
     }
 
     // MARK: Open / close
 
-    func open(tab: Tab? = nil) {
+    /// Opens on `display`, else the display under the pointer, else the primary one. If another
+    /// display's notch is open, it moves there (that one collapses).
+    func open(tab: Tab? = nil, on display: CGDirectDisplayID? = nil) {
         if let tab { self.tab = tab }
-        guard !isExpanded else { return }
+        let target = display ?? pointerDisplay ?? primaryDisplay
+        if isExpanded {
+            if let target, target != expandedDisplay {
+                withAnimation(Self.openAnimation) { expandedDisplay = target }
+            }
+            return
+        }
+        expandedDisplay = target
         withAnimation(Self.openAnimation) { isExpanded = true }
     }
 
@@ -50,7 +81,7 @@ final class NotchModel: ObservableObject {
         let all = Tab.allCases
         let i = all.firstIndex(of: tab) ?? 0
         let next = min(max(i + offset, 0), all.count - 1)
-        withAnimation(.easeInOut(duration: 0.2)) { tab = all[next] }
+        withAnimation(Self.tabAnimation) { tab = all[next] }
     }
 
     // MARK: Live activities
