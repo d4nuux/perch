@@ -147,6 +147,19 @@ struct ExpandedView: View {
         .padding(.bottom, 16)
         .frame(maxHeight: .infinity, alignment: .top)
         .foregroundStyle(.white)
+        .overlay(alignment: .bottom) {
+            // Volume / brightness while open: a floating pill instead of the system OSD.
+            if let a = model.activity, a.key.hasPrefix("hud.") {
+                HStack(spacing: 12) { a.leading; a.trailing }
+                    .padding(.horizontal, 16)
+                    .frame(height: 34)
+                    .background(Capsule().fill(Color(white: 0.14)))
+                    .overlay(Capsule().strokeBorder(.white.opacity(0.08)))
+                    .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
+                    .padding(.bottom, 10)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
     }
 }
 

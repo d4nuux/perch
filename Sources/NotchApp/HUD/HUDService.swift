@@ -79,7 +79,7 @@ final class HUDService {
     /// else (disabled, unsupported device, API failure) returns false and macOS handles the key.
     private func handle(_ press: MediaKeyPress) -> Bool {
         let g = gate
-        guard g.master, !g.expanded else { return false }
+        guard g.master else { return false }
         let step = press.fine ? Self.step / 4 : Self.step
         switch press.key {
         case .volumeUp, .volumeDown, .mute: guard g.volume else { return false }
@@ -141,7 +141,7 @@ final class HUDService {
 
     // MARK: External changes (main thread)
 
-    private var wantsExternal: Bool { context.settings.hudEnabled && !context.model.isExpanded }
+    private var wantsExternal: Bool { context.settings.hudEnabled }
 
     private func volumeChangedExternally() {
         guard wantsExternal, hud.volumeEnabled, let dev = audio.defaultDevice, let v = audio.volume(dev) else { return }
@@ -194,7 +194,6 @@ final class HUDService {
         state.muted = muted
         state.announcing = announcing
         let model = context.model
-        guard !model.isExpanded else { return }
         let duration = hud.duration + (announcing ? Self.announceExtra : 0)
         model.present(LiveActivity(key: kind.key,
                                    extraWidth: HUDLayout.extraWidth(settings: hud, forceLabel: announcing)) {
