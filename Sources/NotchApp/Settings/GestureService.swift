@@ -5,14 +5,15 @@ import AppKit
 /// The panel only receives scroll events while the cursor is over the notch (it ignores mouse
 /// events otherwise), so a local monitor filtered to that window is enough.
 ///
-/// Collapsed: swipe down opens; horizontal swipe while music plays = next/previous track.
+/// Collapsed: swipe down opens; swipe up dismisses the live activity (if enabled);
+/// horizontal swipe while music plays = next/previous track.
 /// Expanded: swipe up closes; horizontal swipe switches tabs.
-/// One action per gesture, dominant axis only, momentum ignored.
+/// Directions follow the fingers regardless of the system "Natural scrolling" setting
+/// (optionally reversed). One action per gesture, dominant axis only, momentum ignored.
 final class GestureService {
     private let context: NotchContext
+    private let prefs = GestureSettings.shared
     private var monitor: Any?
-
-    private static let threshold: CGFloat = 40
     /// Movement needed before the gesture's axis is locked.
     private static let axisLockDistance: CGFloat = 8
     /// For precise devices that send no phases: gap that starts a new gesture.
@@ -27,7 +28,6 @@ final class GestureService {
 
     init(context: NotchContext) {
         self.context = context
-        // Launch-at-login sync must run at launch; there's no other Settings entry point in core.
         monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
             self?.handle(event) ?? event
         }
@@ -69,9 +69,12 @@ final class GestureService {
         }
         if triggered { return nil }
 
-        // scrollingDelta follows content movement: +y = content moves down, +x = content moves right.
-        accum.dx += event.scrollingDeltaX
-        accum.dy += event.scrollingDeltaY
+        // Normalize to finger movement: +y = fingers move down, +x = fingers move right.
+        // scrollingDelta follows content, which matches the fingers only with natural scrolling on.
+        var sign: CGFloat = event.isDirectionInvertedFromDevice ? 1 : -1
+        if prefs.reverseDirection { sign = -sign }
+        accum.dx += event.scrollingDeltaX * sign
+        accum.dy += event.scrollingDeltaY * sign
 
         if axis == nil, max(abs(accum.dx), abs(accum.dy)) >= Self.axisLockDistance {
             axis = abs(accum.dx) > abs(accum.dy) ? .horizontal : .vertical
@@ -80,7 +83,9 @@ final class GestureService {
 
         if perform(axis: axis, at: event) {
             triggered = true
-            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+            if prefs.haptics {
+                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+            }
             return nil
         }
         return event
@@ -89,11 +94,15 @@ final class GestureService {
     /// Returns true if an action fired.
     private func perform(axis: Axis, at event: NSEvent) -> Bool {
         let model = context.model
-        let t = Self.threshold
+        let t = CGFloat(prefs.sensitivity.rawValue)
         switch axis {
         case .vertical:
             if !model.isExpanded, accum.dy >= t {
                 model.open()
+                return true
+            }
+            if !model.isExpanded, accum.dy <= -t, prefs.swipeToDismiss, let activity = model.activity {
+                model.dismissActivity(key: activity.key)
                 return true
             }
             if model.isExpanded, accum.dy <= -t {
@@ -105,7 +114,7 @@ final class GestureService {
             }
         case .horizontal:
             guard abs(accum.dx) >= t else { return false }
-            // Fingers moving left (content moves left) = forward.
+            // Fingers moving left = forward.
             let forward = accum.dx < 0
             if model.isExpanded {
                 if isOverScrollView(event, axis: .horizontal) { return false }

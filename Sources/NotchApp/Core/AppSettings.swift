@@ -15,12 +15,17 @@ final class AppSettings: ObservableObject {
     @Published var calendarEnabled: Bool { didSet { d.set(calendarEnabled, forKey: "calendarEnabled") } }
     @Published var lockScreenWidgets: Bool { didSet { d.set(lockScreenWidgets, forKey: "lockScreenWidgets") } }
     @Published var launchAtLogin: Bool { didSet { d.set(launchAtLogin, forKey: "launchAtLogin") } }
+    /// Menu bar status item (Open / Settings / Quit).
+    @Published var menuBarIcon: Bool { didSet { d.set(menuBarIcon, forKey: "menuBarIcon") } }
+    /// Set once the first-run onboarding window has been shown.
+    @Published var didOnboard: Bool { didSet { d.set(didOnboard, forKey: "didOnboard") } }
 
     private init() {
         d.register(defaults: [
             "openOnHover": true, "gesturesEnabled": true, "hudEnabled": true,
             "chargingActivity": true, "bluetoothActivity": true, "trackChangeActivity": true,
             "calendarEnabled": true, "lockScreenWidgets": true, "launchAtLogin": false,
+            "menuBarIcon": false, "didOnboard": false,
         ])
         openOnHover = d.bool(forKey: "openOnHover")
         gesturesEnabled = d.bool(forKey: "gesturesEnabled")
@@ -31,5 +36,7 @@ final class AppSettings: ObservableObject {
         calendarEnabled = d.bool(forKey: "calendarEnabled")
         lockScreenWidgets = d.bool(forKey: "lockScreenWidgets")
         launchAtLogin = d.bool(forKey: "launchAtLogin")
+        menuBarIcon = d.bool(forKey: "menuBarIcon")
+        didOnboard = d.bool(forKey: "didOnboard")
     }
 }
