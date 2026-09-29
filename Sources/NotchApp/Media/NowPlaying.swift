@@ -78,6 +78,9 @@ final class NowPlaying: ObservableObject {
     private var scriptPlayers: [Player] = []
     private var remoteState = MediaRemoteSource.State()
     private var remoteArtwork: NSImage?
+    /// Track (title|artist) `remoteArtwork` belongs to.
+    private var remoteArtworkTrack = ""
+    private var artworkClearWork: DispatchWorkItem?
     /// Position anchor, extrapolated while playing.
     private var anchor = (elapsed: 0.0, at: Date(), rate: 1.0)
     /// AppleScript extras (shuffle/repeat/favorite) are read per track only after the user used one
@@ -143,6 +146,8 @@ final class NowPlaying: ObservableObject {
         let wantRemote = settings.source == .automatic && !remoteUnavailable
         clear()
         remoteArtwork = nil
+        remoteArtworkTrack = ""
+        artworkClearWork?.cancel(); artworkClearWork = nil
         artworkKey = ""
         artwork = nil
         if wantRemote {
@@ -181,10 +186,32 @@ final class NowPlaying: ObservableObject {
         applyRemoteNow(s)
     }
 
+    /// Browsers re-publish the track without artwork for a moment on seek/pause, and send a new
+    /// track's title before its artwork. Showing that gap flashes the app icon, so: same track ->
+    /// keep the artwork; new track -> keep the old one up to 1s while the new artwork arrives.
+    private func takeRemoteArtwork(_ art: NSImage?, track: String) {
+        artworkClearWork?.cancel(); artworkClearWork = nil
+        if let art {
+            remoteArtwork = art
+            remoteArtworkTrack = track
+            return
+        }
+        guard track != remoteArtworkTrack, remoteArtwork != nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.artworkClearWork = nil
+            self.remoteArtwork = nil
+            self.remoteArtworkTrack = track
+            if self.useRemote, self.artwork != nil { self.artwork = nil }
+        }
+        artworkClearWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
+    }
+
     private func applyRemoteNow(_ s: MediaRemoteSource.State) {
         remoteState = s
         remoteState.artwork = nil
-        if let art = s.artwork { remoteArtwork = art }
+        if let art = s.artwork { takeRemoteArtwork(art, track: s.title + "|" + s.artist) }
         guard useRemote else { return }
         settings.noteSource(s.bundleID)
         if !s.bundleID.isEmpty, settings.ignoredSources.contains(s.bundleID) {
@@ -196,7 +223,16 @@ final class NowPlaying: ObservableObject {
         setTrack(title: s.title, artist: s.artist, album: s.album, bundleID: s.bundleID)
         let playing = s.isPlaying && !s.title.isEmpty
         assign(\.duration, s.duration)
-        anchor = (s.elapsed, s.timestamp, s.rate > 0 ? s.rate : 1)
+        if let g = seekGuard, Date().timeIntervalSince(g.at) < 1.5 {
+            let now = Date()
+            let rate = s.rate > 0 ? s.rate : 1
+            let reported = s.elapsed + (s.isPlaying ? now.timeIntervalSince(s.timestamp) * rate : 0)
+            let expected = g.target + (s.isPlaying ? now.timeIntervalSince(g.at) : 0)
+            if abs(reported - expected) < 2 { seekGuard = nil; anchor = (s.elapsed, s.timestamp, rate) }
+        } else {
+            seekGuard = nil
+            anchor = (s.elapsed, s.timestamp, s.rate > 0 ? s.rate : 1)
+        }
         isPlaying = playing
         tick()
         assign(\.supportedCommands, s.commands ?? [])
@@ -362,7 +398,12 @@ final class NowPlaying: ObservableObject {
         } else { return }
         anchor = (t, Date(), anchor.rate)
         setPosition(t)
+        seekGuard = (t, Date())
     }
+
+    /// Right after a seek the source may still report the old position once; ignore reports that
+    /// disagree with the seek target for a short while so the bar doesn't jump back and forth.
+    private var seekGuard: (target: Double, at: Date)?
 
     /// Music/Spotify is the source: shuffle/repeat/favorite go through AppleScript (state is readable).
     private var scriptPlayer: Player? {
