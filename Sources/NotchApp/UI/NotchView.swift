@@ -358,17 +358,36 @@ struct HomeTab: View {
 
 struct ClockCard: View {
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { ctx in
+        TimelineView(.everyMinute) { ctx in
             VStack(alignment: .leading, spacing: 2) {
                 Text(ctx.date, format: .dateTime.weekday(.wide))
                     .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.6))
-                Text(ctx.date, format: .dateTime.hour().minute())
-                    .font(.system(size: 34, weight: .semibold, design: .rounded)).monospacedDigit()
+                // AM/PM as a small suffix so the time fits the card instead of truncating.
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text(ctx.date, format: .dateTime.hour(.defaultDigits(amPM: .omitted)).minute())
+                        .font(.system(size: 34, weight: .semibold, design: .rounded)).monospacedDigit()
+                    AMPMLabel(date: ctx.date)
+                }
+                .lineLimit(1).minimumScaleFactor(0.6)
                 Text(ctx.date, format: .dateTime.month(.wide).day())
                     .font(.system(size: 12)).foregroundStyle(.white.opacity(0.6))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+/// "AM"/"PM" alone (empty on 24-hour locales).
+private struct AMPMLabel: View {
+    let date: Date
+    var body: some View {
+        let f = DateFormatter()
+        f.locale = .current
+        f.setLocalizedDateFormatFromTemplate("j")
+        let is12h = f.dateFormat.contains("a")
+        f.dateFormat = "a"
+        return Text(is12h ? f.string(from: date) : "")
+            .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.6))
     }
 }
 

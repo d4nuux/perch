@@ -163,7 +163,25 @@ final class NowPlaying: ObservableObject {
 
     // MARK: MediaRemote
 
+    /// Sources (notably browsers) report an empty track for a moment while skipping to the next
+    /// one. Hold the current track briefly so the player doesn't flash "nothing playing".
+    private var pendingEmpty: DispatchWorkItem?
+
     private func applyRemote(_ s: MediaRemoteSource.State) {
+        pendingEmpty?.cancel(); pendingEmpty = nil
+        if s.title.isEmpty, hasTrack, useRemote {
+            let work = DispatchWorkItem { [weak self] in
+                self?.pendingEmpty = nil
+                self?.applyRemoteNow(s)
+            }
+            pendingEmpty = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+            return
+        }
+        applyRemoteNow(s)
+    }
+
+    private func applyRemoteNow(_ s: MediaRemoteSource.State) {
         remoteState = s
         remoteState.artwork = nil
         if let art = s.artwork { remoteArtwork = art }
