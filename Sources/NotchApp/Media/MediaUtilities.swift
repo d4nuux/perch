@@ -21,12 +21,12 @@ enum TitleCleaner {
     }
 }
 
-/// Accent color from artwork: downsample to 8x8 and take the most saturated usable pixel.
+/// Colors derived from artwork (downsampled to 8x8).
 enum ArtworkColor {
-    static func accent(for image: NSImage) -> NSColor? {
+    /// Premultiplied-RGBA 8x8 pixels, row 0 = top of the image.
+    private static func pixels(_ image: NSImage, n: Int = 8) -> [UInt8]? {
         guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
               let space = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
-        let n = 8
         var px = [UInt8](repeating: 0, count: n * n * 4)
         let drawn: Bool = px.withUnsafeMutableBytes { buf in
             guard let ctx = CGContext(data: buf.baseAddress, width: n, height: n, bitsPerComponent: 8,
@@ -36,13 +36,22 @@ enum ArtworkColor {
             ctx.draw(cg, in: CGRect(x: 0, y: 0, width: n, height: n))
             return true
         }
-        guard drawn else { return nil }
+        return drawn ? px : nil
+    }
+
+    private static func color(_ px: [UInt8], _ i: Int) -> NSColor? {
+        let a = CGFloat(px[i * 4 + 3]) / 255
+        guard a > 0.5 else { return nil }
+        return NSColor(srgbRed: CGFloat(px[i * 4]) / 255 / a, green: CGFloat(px[i * 4 + 1]) / 255 / a,
+                       blue: CGFloat(px[i * 4 + 2]) / 255 / a, alpha: 1)
+    }
+
+    /// Most saturated usable pixel, made readable on black. Nil for monochrome artwork.
+    static func accent(for image: NSImage) -> NSColor? {
+        guard let px = pixels(image) else { return nil }
         var best: (score: CGFloat, h: CGFloat, s: CGFloat, b: CGFloat)?
-        for i in 0..<(n * n) {
-            let a = CGFloat(px[i * 4 + 3]) / 255
-            guard a > 0.5 else { continue }
-            let c = NSColor(srgbRed: CGFloat(px[i * 4]) / 255 / a, green: CGFloat(px[i * 4 + 1]) / 255 / a,
-                            blue: CGFloat(px[i * 4 + 2]) / 255 / a, alpha: 1)
+        for i in 0..<64 {
+            guard let c = color(px, i) else { continue }
             var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0
             c.getHue(&h, saturation: &s, brightness: &b, alpha: nil)
             guard b > 0.18 else { continue } // near-black pixels have meaningless hue
@@ -52,6 +61,25 @@ enum ArtworkColor {
         guard let best, best.s > 0.18 else { return nil } // monochrome artwork: callers fall back to white
         // Readable on black: bright, not neon.
         return NSColor(hue: best.h, saturation: min(best.s, 0.8), brightness: max(best.b, 0.75), alpha: 1)
+    }
+
+    /// Two dark colors (top half, bottom half of the artwork) for a backdrop gradient under white text.
+    static func backdrop(for image: NSImage) -> [NSColor]? {
+        guard let px = pixels(image) else { return nil }
+        func average(rows: Range<Int>) -> NSColor? {
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, n: CGFloat = 0
+            for y in rows { for x in 0..<8 {
+                guard let c = color(px, y * 8 + x) else { continue }
+                r += c.redComponent; g += c.greenComponent; b += c.blueComponent; n += 1
+            } }
+            guard n > 0 else { return nil }
+            var h: CGFloat = 0, s: CGFloat = 0, v: CGFloat = 0
+            NSColor(srgbRed: r / n, green: g / n, blue: b / n, alpha: 1).getHue(&h, saturation: &s, brightness: &v, alpha: nil)
+            // Averages go muddy: nudge saturation up, clamp brightness into a dark band.
+            return NSColor(hue: h, saturation: min(s * 1.25, 0.75), brightness: min(max(v, 0.22), 0.42), alpha: 1)
+        }
+        guard let top = average(rows: 0..<4), let bottom = average(rows: 4..<8) else { return nil }
+        return [top, bottom]
     }
 }
 

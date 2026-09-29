@@ -4,6 +4,7 @@ import SwiftUI
 struct MediaPlayer: View {
     @EnvironmentObject var np: NowPlaying
     @ObservedObject private var settings = MediaSettings.shared
+    @StateObject private var flip = FlipState()
 
     private var tint: Color {
         guard settings.artworkColor, let c = np.accentColor else { return .white }
@@ -18,11 +19,39 @@ struct MediaPlayer: View {
             artworkView
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(np.title).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                HStack(spacing: 5) {
+                    Text(np.title).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                    if np.isExplicit { ExplicitBadge().transition(.opacity) }
+                }
+                .animation(.easeInOut(duration: 0.2), value: np.isExplicit)
                 Text(np.artist).font(.system(size: 12)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
                 MediaProgress(np: np, clock: np.clock, tint: tint)
                 controls
             }
+        }
+        .background(backdrop)
+        .onChange(of: np.trackChanges) { _, _ in
+            guard settings.artworkFlip else { return }
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.78)) { flip.angle += 180 }
+        }
+    }
+
+    // MARK: Gradient backdrop
+
+    @ViewBuilder
+    private var backdrop: some View {
+        if settings.artworkStyle == .gradient, let colors = np.backdropColors {
+            ZStack {
+                LinearGradient(colors: colors.map { Color(nsColor: $0) }, startPoint: .topLeading, endPoint: .bottomTrailing)
+                // Fades out to the right so the backdrop blends into the notch; keeps white text readable.
+                LinearGradient(colors: [.black.opacity(0.15), .black.opacity(0.75)], startPoint: .leading, endPoint: .trailing)
+            }
+            .opacity(np.isPlaying ? 0.9 : 0.6)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(.horizontal, -10).padding(.vertical, -8)
+            .transition(.opacity)
+            .animation(.easeInOut(duration: 0.6), value: colors)
+            .animation(.easeInOut(duration: 0.3), value: np.isPlaying)
         }
     }
 
@@ -31,7 +60,7 @@ struct MediaPlayer: View {
     private var artworkView: some View {
         ZStack(alignment: .bottomTrailing) {
             ZStack {
-                if settings.artworkColor, let c = np.accentColor {
+                if let c = np.accentColor {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .fill(Color(nsColor: c))
                         .frame(width: 84, height: 84)
@@ -45,6 +74,7 @@ struct MediaPlayer: View {
             }
             .animation(.easeInOut(duration: 0.45), value: artworkID)
             .animation(.easeInOut(duration: 0.45), value: np.accentColor)
+            .modifier(FlipEffect(angle: flip.angle))
             .scaleEffect(np.isPlaying ? 1 : 0.92)
             .animation(.spring(response: 0.35, dampingFraction: 0.7), value: np.isPlaying)
 
@@ -58,6 +88,7 @@ struct MediaPlayer: View {
         Group {
             if let art = np.artwork {
                 Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
+                    .grayscale(settings.artworkStyle == .mono ? 1 : 0)
             } else {
                 ZStack {
                     Color.white.opacity(0.1)
@@ -210,5 +241,41 @@ struct SeekBar: View {
             )
         }
         .frame(height: 12)
+    }
+}
+
+/// Rotation of the artwork's flip; grows by 180° per track change.
+final class FlipState: ObservableObject {
+    @Published var angle: Double = 0
+}
+
+/// Y-axis flip. Past 90° the content is mirrored back so the artwork never shows reversed.
+struct FlipEffect: ViewModifier, Animatable {
+    var angle: Double
+    var animatableData: Double {
+        get { angle }
+        set { angle = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(x: cos(angle * .pi / 180) < 0 ? -1 : 1, y: 1)
+            .rotation3DEffect(.degrees(angle), axis: (x: 0, y: 1, z: 0), perspective: 0.45)
+    }
+}
+
+/// Small outlined "E" shown after explicit track titles.
+struct ExplicitBadge: View {
+    var size: CGFloat = 9
+
+    var body: some View {
+        Text("E")
+            .font(.system(size: size, weight: .bold))
+            .foregroundStyle(.white.opacity(0.55))
+            .frame(width: size + 4, height: size + 4)
+            .overlay(RoundedRectangle(cornerRadius: 3, style: .continuous).stroke(.white.opacity(0.55), lineWidth: 1))
+            .fixedSize()
+            .accessibilityLabel("Explicit")
+            .help("Explicit")
     }
 }

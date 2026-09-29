@@ -68,6 +68,7 @@ static void poll(void) {
                 id shuffle = info[@"kMRMediaRemoteNowPlayingInfoShuffleMode"];
                 id repeat = info[@"kMRMediaRemoteNowPlayingInfoRepeatMode"];
                 id liked = info[@"kMRMediaRemoteNowPlayingInfoIsLiked"];
+                id explicitFlag = info[@"kMRMediaRemoteNowPlayingInfoIsExplicitTrack"];
                 NSMutableArray *enabled = [NSMutableArray array];
                 for (id ci in commandInfos) {
                     if (commandInfoEnabled && !commandInfoEnabled(ci)) continue;
@@ -89,6 +90,7 @@ static void poll(void) {
                 if ([shuffle isKindOfClass:NSNumber.class]) o[@"shuffle"] = shuffle;
                 if ([repeat isKindOfClass:NSNumber.class]) o[@"repeat"] = repeat;
                 if ([liked isKindOfClass:NSNumber.class]) o[@"liked"] = liked;
+                if ([explicitFlag isKindOfClass:NSNumber.class]) o[@"explicit"] = explicitFlag;
                 if (commandInfos) o[@"commands"] = [enabled sortedArrayUsingSelector:@selector(compare:)];
 
                 NSData *art = info[@"kMRMediaRemoteNowPlayingInfoArtworkData"];

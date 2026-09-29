@@ -38,6 +38,12 @@ final class NowPlaying: ObservableObject {
     /// Tint derived from the artwork; nil when there's no artwork, it's monochrome, or the
     /// "artwork color" setting is off.
     @Published private(set) var accentColor: NSColor?
+    /// Dark top/bottom colors for the "gradient" artwork style; nil otherwise or without artwork.
+    @Published private(set) var backdropColors: [NSColor]?
+    /// Current track is explicit (badge setting on and known). False while unknown.
+    @Published private(set) var isExplicit = false
+    /// Bumped when one track replaces another (not on first load, not when the same track re-emits).
+    @Published private(set) var trackChanges = 0
     /// The app that's playing is the frontmost app.
     @Published private(set) var sourceIsFrontmost = false
     /// "Hide while source app is frontmost" is on and it is: collapsed live activity should hide.
@@ -78,6 +84,7 @@ final class NowPlaying: ObservableObject {
     /// of those controls for that app in MediaRemote mode, so no Automation prompt appears unasked.
     private var scriptExtrasApproved: Set<String> = []
     private var accentWork = 0
+    private let explicitLookup = ExplicitLookup()
 
     init() {
         remote.onUpdate = { [weak self] state in self?.applyRemote(state) }
@@ -99,6 +106,10 @@ final class NowPlaying: ObservableObject {
             .sink { [weak self] _ in self?.updateDisplayTitle() }.store(in: &cancellables)
         settings.$artworkColor.dropFirst().receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updateAccent() }.store(in: &cancellables)
+        settings.$artworkStyle.dropFirst().receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateAccent() }.store(in: &cancellables)
+        settings.$explicitBadge.dropFirst().receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateExplicit() }.store(in: &cancellables)
         settings.$hideWhileSourceFrontmost.dropFirst().receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updateFrontmost() }.store(in: &cancellables)
 
@@ -180,6 +191,8 @@ final class NowPlaying: ObservableObject {
 
     private func setTrack(title raw: String, artist: String, album: String, bundleID: String) {
         let changed = raw != rawTitle || artist != self.artist || bundleID != sourceBundleID
+        // Keyed on the title: some sources fill in the artist a beat later for the same track.
+        if raw != rawTitle, !rawTitle.isEmpty, !raw.isEmpty { trackChanges &+= 1 }
         assign(\.rawTitle, raw)
         assign(\.artist, artist)
         assign(\.album, album)
@@ -194,7 +207,35 @@ final class NowPlaying: ObservableObject {
             shuffle = .unknown; repeatMode = .unknown; isLiked = nil
             if let p = scriptPlayer, !useRemote || scriptExtrasApproved.contains(p.bundleID) { fetchScriptExtras(p) }
         }
+        updateExplicit()
     }
+
+    /// Explicit flag: MediaRemote's when the source sets it, a "(Explicit)" title tag, else iTunes lookup.
+    private func updateExplicit() {
+        guard settings.explicitBadge, !rawTitle.isEmpty else {
+            explicitLookup.cancel()
+            assign(\.isExplicit, false)
+            return
+        }
+        if useRemote, let e = remoteState.isExplicit {
+            explicitLookup.cancel()
+            assign(\.isExplicit, e)
+            return
+        }
+        if rawTitle.range(of: #"[\(\[]\s*explicit\s*[\)\]]"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            explicitLookup.cancel()
+            assign(\.isExplicit, true)
+            return
+        }
+        let key = rawTitle + "|" + artist
+        let cached = explicitLookup.request(title: TitleCleaner.clean(rawTitle), artist: artist) { [weak self] e in
+            guard let self, self.rawTitle + "|" + self.artist == key, self.settings.explicitBadge else { return }
+            self.assign(\.isExplicit, e)
+        }
+        assign(\.isExplicit, cached ?? (explicitKey == key ? isExplicit : false))
+        explicitKey = key
+    }
+    private var explicitKey = ""
 
     private func updateDisplayTitle() {
         assign(\.title, settings.cleanTitles ? TitleCleaner.clean(rawTitle) : rawTitle)
@@ -209,6 +250,7 @@ final class NowPlaying: ObservableObject {
         if !sourceBundleID.isEmpty { sourceBundleID = ""; updateFrontmost() }
         shuffle = .unknown; repeatMode = .unknown; isLiked = nil
         assign(\.supportedCommands, [])
+        updateExplicit()
     }
 
     private func assign<T: Equatable>(_ kp: ReferenceWritableKeyPath<NowPlaying, T>, _ value: T) {
@@ -254,15 +296,21 @@ final class NowPlaying: ObservableObject {
     private func updateAccent() {
         accentWork += 1
         let work = accentWork
-        guard settings.artworkColor, let art = artwork else {
+        // Mono style: no color anywhere (tint, glow, collapsed equalizer fall back to white).
+        let wantAccent = settings.artworkColor && settings.artworkStyle != .mono
+        let wantBackdrop = settings.artworkStyle == .gradient
+        guard wantAccent || wantBackdrop, let art = artwork else {
             if accentColor != nil { accentColor = nil }
+            if backdropColors != nil { backdropColors = nil }
             return
         }
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            let c = ArtworkColor.accent(for: art)
+            let c = wantAccent ? ArtworkColor.accent(for: art) : nil
+            let b = wantBackdrop ? ArtworkColor.backdrop(for: art) : nil
             DispatchQueue.main.async {
                 guard let self, self.accentWork == work else { return }
-                self.accentColor = c
+                if self.accentColor != c { self.accentColor = c }
+                if self.backdropColors != b { self.backdropColors = b }
             }
         }
     }

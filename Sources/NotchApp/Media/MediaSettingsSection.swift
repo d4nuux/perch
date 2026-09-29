@@ -27,7 +27,14 @@ struct MediaSettingsSection: View {
         }
         Toggle("Clean up track titles", isOn: $s.cleanTitles)
             .help("Hides tags like “(Remastered 2011)” or “[Official Video]”.")
+        Picker("Artwork style", selection: $s.artworkStyle) {
+            ForEach(MediaSettings.ArtworkStyle.allCases) { Text($0.label).tag($0) }
+        }
         Toggle("Tint player with artwork color", isOn: $s.artworkColor)
+            .disabled(s.artworkStyle == .mono)
+        Toggle("Flip artwork on track change", isOn: $s.artworkFlip)
+        Toggle("Show explicit badge", isOn: $s.explicitBadge)
+            .help("Uses the player's explicit flag when it reports one, otherwise looks the track up in the iTunes Search API (one request per track, cached).")
         Toggle("Hide live activity while the playing app is in front", isOn: $s.hideWhileSourceFrontmost)
         if s.source == .automatic {
             DisclosureGroup("Ignored sources") {

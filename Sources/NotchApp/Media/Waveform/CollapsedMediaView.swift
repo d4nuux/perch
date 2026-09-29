@@ -3,13 +3,17 @@ import SwiftUI
 /// Collapsed "live activity": artwork on the left of the notch, live visualizer on the right.
 struct CollapsedActivity: View {
     @EnvironmentObject var nowPlaying: NowPlaying
+    @ObservedObject private var settings = MediaSettings.shared
     let notchWidth: CGFloat
 
     var body: some View {
         HStack(spacing: 0) {
             Group {
-                if let art = nowPlaying.artwork ?? nowPlaying.appIcon {
+                if let art = nowPlaying.artwork {
                     Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
+                        .grayscale(settings.artworkStyle == .mono ? 1 : 0)
+                } else if let icon = nowPlaying.appIcon {
+                    Image(nsImage: icon).resizable().aspectRatio(contentMode: .fill)
                 } else {
                     ZStack {
                         Color.white.opacity(0.12)

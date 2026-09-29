@@ -12,6 +12,8 @@ final class MediaRemoteSource {
         /// MRMediaRemoteShuffleMode (1 off, 2 albums, 3 songs) / RepeatMode (1 off, 2 one, 3 all), if exposed.
         var shuffleMode: Int?, repeatMode: Int?
         var isLiked: Bool?
+        /// kMRMediaRemoteNowPlayingInfoIsExplicitTrack, if the helper forwards it and the source sets it.
+        var isExplicit: Bool?
         /// Enabled MRMediaRemoteCommand ids; nil if the helper couldn't query them.
         var commands: Set<Int>?
     }
@@ -135,6 +137,7 @@ final class MediaRemoteSource {
         s.shuffleMode = (o["shuffle"] as? NSNumber)?.intValue
         s.repeatMode = (o["repeat"] as? NSNumber)?.intValue
         s.isLiked = (o["liked"] as? NSNumber)?.boolValue
+        s.isExplicit = (o["explicit"] as? NSNumber)?.boolValue
         if let c = o["commands"] as? [NSNumber] { s.commands = Set(c.map(\.intValue)) }
         return s
     }

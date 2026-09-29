@@ -31,6 +31,18 @@ final class MediaSettings: ObservableObject {
         }
     }
 
+    enum ArtworkStyle: String, CaseIterable, Identifiable {
+        case full, gradient, mono
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .full: "Full artwork"
+            case .gradient: "Artwork gradient"
+            case .mono: "Monochrome"
+            }
+        }
+    }
+
     @Published var source: Source { didSet { d.set(source.rawValue, forKey: "media.source") } }
     /// Bundle ids whose media is never shown (Automatic source only).
     @Published var ignoredSources: Set<String> { didSet { d.set(Array(ignoredSources), forKey: "media.ignored") } }
@@ -42,6 +54,13 @@ final class MediaSettings: ObservableObject {
     @Published var extraLeft: ExtraControl { didSet { d.set(extraLeft.rawValue, forKey: "media.extraLeft") } }
     @Published var extraRight: ExtraControl { didSet { d.set(extraRight.rawValue, forKey: "media.extraRight") } }
     @Published var showRemaining: Bool { didSet { d.set(showRemaining, forKey: "media.showRemaining") } }
+    /// full: artwork as is; gradient: adds an artwork-colored backdrop behind the expanded player;
+    /// mono: grayscale artwork and no color tint.
+    @Published var artworkStyle: ArtworkStyle { didSet { d.set(artworkStyle.rawValue, forKey: "media.artworkStyle") } }
+    /// 3D flip of the artwork when the track changes.
+    @Published var artworkFlip: Bool { didSet { d.set(artworkFlip, forKey: "media.artworkFlip") } }
+    /// "E" badge next to explicit tracks (MediaRemote flag if the source sets it, else iTunes Search lookup).
+    @Published var explicitBadge: Bool { didSet { d.set(explicitBadge, forKey: "media.explicitBadge") } }
 
     var extraControls: [ExtraControl] { [extraLeft, extraRight].filter { $0 != .none } }
 
@@ -50,6 +69,7 @@ final class MediaSettings: ObservableObject {
             "media.source": Source.automatic.rawValue, "media.cleanTitles": true, "media.artworkColor": true,
             "media.hideFrontmost": false, "media.extraLeft": ExtraControl.none.rawValue,
             "media.extraRight": ExtraControl.none.rawValue, "media.showRemaining": false,
+            "media.artworkStyle": ArtworkStyle.full.rawValue, "media.artworkFlip": true, "media.explicitBadge": true,
         ])
         source = Source(rawValue: d.string(forKey: "media.source") ?? "") ?? .automatic
         ignoredSources = Set(d.stringArray(forKey: "media.ignored") ?? [])
@@ -60,6 +80,9 @@ final class MediaSettings: ObservableObject {
         extraLeft = ExtraControl(rawValue: d.string(forKey: "media.extraLeft") ?? "") ?? .none
         extraRight = ExtraControl(rawValue: d.string(forKey: "media.extraRight") ?? "") ?? .none
         showRemaining = d.bool(forKey: "media.showRemaining")
+        artworkStyle = ArtworkStyle(rawValue: d.string(forKey: "media.artworkStyle") ?? "") ?? .full
+        artworkFlip = d.bool(forKey: "media.artworkFlip")
+        explicitBadge = d.bool(forKey: "media.explicitBadge")
     }
 
     func noteSource(_ bundleID: String) {
