@@ -21,3 +21,13 @@ notifications, swipe gestures, custom HUDs, lock screen widgets, native performa
 
 ## Integration (lead)
 Merge folders → build → fix → run → review pass.
+
+## Wave 4 (parity gaps)
+| Agent | Owns | Scope |
+|---|---|---|
+| media4 | `Media/` | Artwork styles (full / gradient / mono), artwork flip on track change, Explicit badge (iTunes Search lookup, cached), Lossless/Atmos only if a real signal exists |
+| hud4 | `HUD/` | Glow + decibel bar styles, per-HUD rules (off on lock screen / during Focus), external display brightness (native DDC on Apple Silicon, BetterDisplay fallback) |
+| act4 | `Activities/` | Animated 3D device visuals (SF Symbols + rotation3DEffect, per device type) for Bluetooth/charging |
+| shell4 | `Core/`, `UI/`, `Display/`, `Settings/Gesture*` | Swipe to cycle activities (history queue), contrast outline, progressive blur, hide during Mission Control and games |
+
+Out of scope: auto-update (no release host yet), Focus names without Full Disk Access (no public source).
