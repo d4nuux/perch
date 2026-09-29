@@ -16,6 +16,8 @@ final class HUDService {
     private let audio = SystemAudio()
     private let display = DisplayBrightness()
     private let keyboard = KeyboardBacklight()
+    private let external = ExternalBrightness()
+    private let conditions = HUDConditions()
     private var tap: MediaKeyTap?
     private var cancellables = Set<AnyCancellable>()
 
@@ -30,6 +32,14 @@ final class HUDService {
         var master = true
         var expanded = false
         var volume = true, brightness = true, keyboard = true
+        var locked = false, focus = false
+        /// Per kind: handle keys while locked / step aside during Focus.
+        var onLock: Set<HUDKind> = [], hideInFocus: Set<HUDKind> = []
+        var externalMode: ExternalBrightnessMode = .off
+
+        func suppressed(_ kind: HUDKind) -> Bool {
+            (locked && !onLock.contains(kind)) || (focus && hideInFocus.contains(kind))
+        }
     }
     private let gateLock = NSLock()
     private var _gate = Gate()
@@ -60,6 +70,27 @@ final class HUDService {
         hud.$volumeEnabled.sink { [weak self] on in self?.updateGate { $0.volume = on } }.store(in: &cancellables)
         hud.$brightnessEnabled.sink { [weak self] on in self?.updateGate { $0.brightness = on } }.store(in: &cancellables)
         hud.$keyboardEnabled.sink { [weak self] on in self?.updateGate { $0.keyboard = on } }.store(in: &cancellables)
+        func rule(_ pub: Published<Bool>.Publisher, _ kind: HUDKind, _ path: WritableKeyPath<Gate, Set<HUDKind>>) {
+            pub.sink { [weak self] on in
+                self?.updateGate { g in if on { g[keyPath: path].insert(kind) } else { g[keyPath: path].remove(kind) } }
+            }.store(in: &cancellables)
+        }
+        rule(hud.$volumeOnLockScreen, .volume, \.onLock)
+        rule(hud.$brightnessOnLockScreen, .brightness, \.onLock)
+        rule(hud.$keyboardOnLockScreen, .keyboard, \.onLock)
+        rule(hud.$volumeHideInFocus, .volume, \.hideInFocus)
+        rule(hud.$brightnessHideInFocus, .brightness, \.hideInFocus)
+        rule(hud.$keyboardHideInFocus, .keyboard, \.hideInFocus)
+        hud.$externalBrightness.sink { [weak self] mode in
+            self?.updateGate { $0.externalMode = mode }
+            self?.external.setMode(mode)
+        }.store(in: &cancellables)
+        conditions.onChange = { [weak self] in
+            guard let self else { return }
+            let locked = self.conditions.isLocked, focus = self.conditions.isFocusOn
+            self.updateGate { $0.locked = locked; $0.focus = focus }
+        }
+        conditions.start()
 
         refreshDevice()
         audio.onChange = { [weak self] in self?.volumeChangedExternally() }
@@ -81,17 +112,20 @@ final class HUDService {
         let g = gate
         guard g.master else { return false }
         let step = press.fine ? Self.step / 4 : Self.step
+        let kind: HUDKind
         switch press.key {
-        case .volumeUp, .volumeDown, .mute: guard g.volume else { return false }
-        case .brightnessUp, .brightnessDown: guard g.brightness else { return false }
-        case .illuminationUp, .illuminationDown: guard g.keyboard else { return false }
+        case .volumeUp, .volumeDown, .mute: guard g.volume else { return false }; kind = .volume
+        case .brightnessUp, .brightnessDown: guard g.brightness else { return false }; kind = .brightness
+        case .illuminationUp, .illuminationDown: guard g.keyboard else { return false }; kind = .keyboard
         }
+        // Lock-screen / Focus rules: let macOS take the key so the user still gets the system OSD.
+        if g.suppressed(kind) { return false }
         switch press.key {
         case .volumeUp: return changeVolume(by: step)
         case .volumeDown: return changeVolume(by: -step)
         case .mute: return press.isRepeat ? isControllable() : toggleMute()
-        case .brightnessUp: return changeBacklight(.brightness, by: step)
-        case .brightnessDown: return changeBacklight(.brightness, by: -step)
+        case .brightnessUp: return changeBrightness(by: step, mode: g.externalMode)
+        case .brightnessDown: return changeBrightness(by: -step, mode: g.externalMode)
         case .illuminationUp: return changeBacklight(.keyboard, by: step)
         case .illuminationDown: return changeBacklight(.keyboard, by: -step)
         }
@@ -129,6 +163,35 @@ final class HUDService {
         return true
     }
 
+    /// Display under the pointer. External + mode on: DisplayServices if it drives that panel
+    /// natively, else DDC / BetterDisplay (async, cached, throttled). Otherwise the built-in panel.
+    private func changeBrightness(by delta: Float, mode: ExternalBrightnessMode) -> Bool {
+        if mode != .off, let id = Self.pointerDisplay(), CGDisplayIsBuiltin(id) == 0 {
+            if let current = display.brightness(of: id) {
+                let target = Self.stepped(current, by: delta)
+                guard display.set(target, on: id) else { return false }
+                show(.brightness, level: Double(target), muted: false, display: id)
+                return true
+            }
+            if external.canControl(id) {
+                external.step(id, by: delta, stepper: Self.stepped) { [weak self] level in
+                    guard let level else { return }
+                    self?.present(.brightness, level: Double(level), muted: false, display: id)
+                }
+                return true
+            }
+        }
+        return changeBacklight(.brightness, by: delta)
+    }
+
+    private static func pointerDisplay() -> CGDirectDisplayID? {
+        guard let point = CGEvent(source: nil)?.location else { return nil }
+        var id: CGDirectDisplayID = 0
+        var count: UInt32 = 0
+        guard CGGetDisplaysWithPoint(point, 1, &id, &count) == .success, count > 0 else { return nil }
+        return id
+    }
+
     private func changeBacklight(_ kind: HUDKind, by delta: Float) -> Bool {
         let current = kind == .brightness ? display.brightness : keyboard.brightness
         guard let current else { return false }
@@ -143,8 +206,12 @@ final class HUDService {
 
     private var wantsExternal: Bool { context.settings.hudEnabled }
 
+    /// Main thread: lock-screen / Focus rules for HUDs not triggered by a key.
+    private func suppressed(_ kind: HUDKind) -> Bool { gate.suppressed(kind) }
+
     private func volumeChangedExternally() {
-        guard wantsExternal, hud.volumeEnabled, let dev = audio.defaultDevice, let v = audio.volume(dev) else { return }
+        guard wantsExternal, hud.volumeEnabled, !suppressed(.volume),
+              let dev = audio.defaultDevice, let v = audio.volume(dev) else { return }
         let state = levels[.volume]!
         let muted = audio.isMuted(dev)
         // Our own key presses echo back here; skip if nothing new.
@@ -164,7 +231,8 @@ final class HUDService {
             let before = self.levels[.volume]!.device
             self.refreshDevice()
             guard let dev = self.audio.defaultDevice, let info = self.levels[.volume]!.device, info != before,
-                  self.wantsExternal, self.hud.volumeEnabled, self.hud.showDeviceChanges else { return }
+                  self.wantsExternal, self.hud.volumeEnabled, self.hud.showDeviceChanges,
+                  !self.suppressed(.volume) else { return }
             self.announceUntil = Date().addingTimeInterval(self.hud.duration + Self.announceExtra)
             self.present(.volume, level: Double(self.audio.volume(dev) ?? 0), muted: self.audio.isMuted(dev))
         }
@@ -173,8 +241,9 @@ final class HUDService {
     }
 
     private func brightnessChangedExternally(_ value: Float) {
-        guard wantsExternal, hud.brightnessEnabled else { return }
-        if abs(levels[.brightness]!.level - Double(value)) < 0.0005, context.model.activity?.key == HUDKind.brightness.key {
+        guard wantsExternal, hud.brightnessEnabled, !suppressed(.brightness) else { return }
+        if abs(levels[.brightness]!.level - Double(value)) < 0.0005, levels[.brightness]!.displayName == nil,
+           context.model.activity?.key == HUDKind.brightness.key {
             return
         }
         present(.brightness, level: Double(value), muted: false)
@@ -182,13 +251,14 @@ final class HUDService {
 
     // MARK: Presentation
 
-    private func show(_ kind: HUDKind, level: Double, muted: Bool) {
-        DispatchQueue.main.async { [weak self] in self?.present(kind, level: level, muted: muted) }
+    private func show(_ kind: HUDKind, level: Double, muted: Bool, display: CGDirectDisplayID? = nil) {
+        DispatchQueue.main.async { [weak self] in self?.present(kind, level: level, muted: muted, display: display) }
     }
 
-    /// Main thread.
-    private func present(_ kind: HUDKind, level: Double, muted: Bool) {
+    /// Main thread. `display`: the external display a brightness change went to (nil = built-in).
+    private func present(_ kind: HUDKind, level: Double, muted: Bool, display: CGDirectDisplayID? = nil) {
         guard let state = levels[kind] else { return }
+        if kind == .brightness { state.displayName = display.flatMap(Self.screenName) }
         let announcing = kind == .volume && Date() < announceUntil
         state.level = level
         state.muted = muted
@@ -201,5 +271,11 @@ final class HUDService {
         } trailing: {
             HUDTrailing(state: state)
         }, duration: duration)
+    }
+
+    private static func screenName(_ id: CGDirectDisplayID) -> String? {
+        NSScreen.screens.first {
+            ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == id
+        }?.localizedName
     }
 }

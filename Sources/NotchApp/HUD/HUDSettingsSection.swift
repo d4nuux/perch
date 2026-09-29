@@ -11,6 +11,18 @@ struct HUDSettingsSection: View {
             .help("Briefly shows the new output device, e.g. when AirPods connect.")
         Toggle("Brightness HUD", isOn: $s.brightnessEnabled)
         Toggle("Keyboard backlight HUD", isOn: $s.keyboardEnabled)
+        ruleRow("Show on lock screen",
+                help: "Off: while the screen is locked, keys go to macOS and the system OSD shows.",
+                $s.volumeOnLockScreen, $s.brightnessOnLockScreen, $s.keyboardOnLockScreen)
+        ruleRow("Hide during Focus",
+                help: "While a Focus is on, keys go to macOS and the system OSD shows.",
+                $s.volumeHideInFocus, $s.brightnessHideInFocus, $s.keyboardHideInFocus)
+        Picker("External display brightness", selection: $s.externalBrightness) {
+            ForEach(ExternalBrightnessMode.allCases) { Text($0.title).tag($0) }
+        }
+        .disabled(!s.brightnessEnabled)
+        .help("Brightness keys adjust the display under the pointer. DDC talks to the monitor directly "
+              + "(Apple Silicon); BetterDisplay uses its CLI when the app is running. Auto tries DDC first.")
         Toggle("Link HUD styles", isOn: $s.linkStyles)
             .help("One bar style for every HUD. Turn off to pick a style per HUD.")
         if s.linkStyles {
@@ -36,6 +48,19 @@ struct HUDSettingsSection: View {
                     .frame(width: 40, alignment: .trailing)
             }
         }
+    }
+
+    private func ruleRow(_ title: String, help: String, _ volume: Binding<Bool>, _ brightness: Binding<Bool>,
+                         _ keyboard: Binding<Bool>) -> some View {
+        LabeledContent(title) {
+            HStack(spacing: 12) {
+                Toggle("Volume", isOn: volume).disabled(!s.volumeEnabled)
+                Toggle("Brightness", isOn: brightness).disabled(!s.brightnessEnabled)
+                Toggle("Keyboard", isOn: keyboard).disabled(!s.keyboardEnabled)
+            }
+            .toggleStyle(.checkbox)
+        }
+        .help(help)
     }
 
     private func stylePicker(_ title: String, _ binding: Binding<HUDBarStyle>) -> some View {

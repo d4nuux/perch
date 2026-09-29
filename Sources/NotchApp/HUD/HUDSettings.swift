@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum HUDBarStyle: String, CaseIterable, Identifiable {
-    case solid, accent, gradient, segmented
+    case solid, accent, gradient, segmented, glow, decibel
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -9,6 +9,8 @@ enum HUDBarStyle: String, CaseIterable, Identifiable {
         case .accent: "Accent color"
         case .gradient: "Gradient"
         case .segmented: "Segmented"
+        case .glow: "Glow"
+        case .decibel: "Decibel"
         }
     }
 }
@@ -55,6 +57,18 @@ final class HUDSettings: ObservableObject {
     @Published var showLabel: Bool { didSet { d.set(showLabel, forKey: K.label) } }
     /// Seconds the HUD stays up after the last change, 1...3.
     @Published var duration: Double { didSet { d.set(duration, forKey: K.duration) } }
+    /// Per-HUD: handle keys while the screen is locked. Off = the system OSD handles them there.
+    @Published var volumeOnLockScreen: Bool { didSet { d.set(volumeOnLockScreen, forKey: K.volumeLock) } }
+    @Published var brightnessOnLockScreen: Bool { didSet { d.set(brightnessOnLockScreen, forKey: K.brightnessLock) } }
+    @Published var keyboardOnLockScreen: Bool { didSet { d.set(keyboardOnLockScreen, forKey: K.keyboardLock) } }
+    /// Per-HUD: step aside (system OSD) while a Focus is on.
+    @Published var volumeHideInFocus: Bool { didSet { d.set(volumeHideInFocus, forKey: K.volumeFocus) } }
+    @Published var brightnessHideInFocus: Bool { didSet { d.set(brightnessHideInFocus, forKey: K.brightnessFocus) } }
+    @Published var keyboardHideInFocus: Bool { didSet { d.set(keyboardHideInFocus, forKey: K.keyboardFocus) } }
+    /// How brightness keys drive an external display under the pointer.
+    @Published var externalBrightness: ExternalBrightnessMode {
+        didSet { d.set(externalBrightness.rawValue, forKey: K.external) }
+    }
 
     private enum K {
         static let volume = "hud.volumeEnabled", brightness = "hud.brightnessEnabled", keyboard = "hud.keyboardEnabled"
@@ -62,6 +76,10 @@ final class HUDSettings: ObservableObject {
         static let volumeStyle = "hud.volumeStyle", brightnessStyle = "hud.brightnessStyle"
         static let keyboardStyle = "hud.keyboardStyle", animation = "hud.animation"
         static let percentage = "hud.showPercentage", label = "hud.showLabel", duration = "hud.duration"
+        static let volumeLock = "hud.volumeOnLockScreen", brightnessLock = "hud.brightnessOnLockScreen"
+        static let keyboardLock = "hud.keyboardOnLockScreen", volumeFocus = "hud.volumeHideInFocus"
+        static let brightnessFocus = "hud.brightnessHideInFocus", keyboardFocus = "hud.keyboardHideInFocus"
+        static let external = "hud.externalBrightness"
     }
 
     private init() {
@@ -70,6 +88,9 @@ final class HUDSettings: ObservableObject {
             K.style: HUDBarStyle.solid.rawValue, K.volumeStyle: HUDBarStyle.solid.rawValue,
             K.brightnessStyle: HUDBarStyle.solid.rawValue, K.keyboardStyle: HUDBarStyle.solid.rawValue,
             K.animation: HUDAnimationSpeed.fast.rawValue, K.percentage: false, K.label: false, K.duration: 1.5,
+            K.volumeLock: false, K.brightnessLock: false, K.keyboardLock: false,
+            K.volumeFocus: false, K.brightnessFocus: false, K.keyboardFocus: false,
+            K.external: ExternalBrightnessMode.auto.rawValue,
         ])
         let defaults = UserDefaults.standard
         func style(_ key: String) -> HUDBarStyle { HUDBarStyle(rawValue: defaults.string(forKey: key) ?? "") ?? .solid }
@@ -86,6 +107,29 @@ final class HUDSettings: ObservableObject {
         showPercentage = d.bool(forKey: K.percentage)
         showLabel = d.bool(forKey: K.label)
         duration = min(max(d.double(forKey: K.duration), 1), 3)
+        volumeOnLockScreen = d.bool(forKey: K.volumeLock)
+        brightnessOnLockScreen = d.bool(forKey: K.brightnessLock)
+        keyboardOnLockScreen = d.bool(forKey: K.keyboardLock)
+        volumeHideInFocus = d.bool(forKey: K.volumeFocus)
+        brightnessHideInFocus = d.bool(forKey: K.brightnessFocus)
+        keyboardHideInFocus = d.bool(forKey: K.keyboardFocus)
+        externalBrightness = ExternalBrightnessMode(rawValue: d.string(forKey: K.external) ?? "") ?? .auto
+    }
+
+    func showsOnLockScreen(_ kind: HUDKind) -> Bool {
+        switch kind {
+        case .volume: volumeOnLockScreen
+        case .brightness: brightnessOnLockScreen
+        case .keyboard: keyboardOnLockScreen
+        }
+    }
+
+    func hidesInFocus(_ kind: HUDKind) -> Bool {
+        switch kind {
+        case .volume: volumeHideInFocus
+        case .brightness: brightnessHideInFocus
+        case .keyboard: keyboardHideInFocus
+        }
     }
 
     func isEnabled(_ kind: HUDKind) -> Bool {

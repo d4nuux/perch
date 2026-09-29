@@ -32,6 +32,20 @@ final class DisplayBrightness {
         return setFn(display, min(max(value, 0), 1)) == 0
     }
 
+    /// Any display DisplayServices drives natively (built-in, Studio Display, LG UltraFine…).
+    func brightness(of id: CGDirectDisplayID) -> Float? {
+        guard let getFn else { return nil }
+        var v: Float = -1
+        guard getFn(id, &v) == 0, v >= 0, v <= 1 else { return nil }
+        return v
+    }
+
+    func set(_ value: Float, on id: CGDirectDisplayID) -> Bool {
+        guard let setFn else { return false }
+        if id == display { markOwnChange() }
+        return setFn(id, min(max(value, 0), 1)) == 0
+    }
+
     // MARK: Changes made elsewhere
 
     private typealias RegisterFn = @convention(c) (CGDirectDisplayID, UnsafeRawPointer?, CFString,
