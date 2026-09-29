@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds Perch.app in ./build and launches it.
+# Builds Perch.app in ./build. --run launches it; --install copies it to /Applications and launches that.
 set -euo pipefail
 cd "$(dirname "$0")"
 swift build -c release
@@ -43,4 +43,14 @@ else
   codesign --force --sign - "$APP"
 fi
 echo "Built $APP"
-[[ "${1:-}" == "--run" ]] && { pkill -x Perch || true; pkill -x NotchApp || true; for _ in {1..50}; do pgrep -x "Perch|NotchApp" >/dev/null || break; sleep 0.1; done; sleep 0.5; open "$APP" || { sleep 1; open "$APP"; }; }
+relaunch() {
+  pkill -x Perch || true; pkill -x NotchApp || true
+  for _ in {1..50}; do pgrep -x "Perch|NotchApp" >/dev/null || break; sleep 0.1; done
+  sleep 0.5; open "$1" || { sleep 1; open "$1"; }
+}
+case "${1:-}" in
+  --run) relaunch "$APP" ;;
+  # Installs to /Applications (shows in Launchpad/Spotlight) and runs that copy.
+  --install) rm -rf /Applications/Perch.app && cp -R "$APP" /Applications/ && echo "Installed /Applications/Perch.app" \
+             && relaunch /Applications/Perch.app ;;
+esac
