@@ -42,4 +42,4 @@ else
   codesign --force --sign - "$APP"
 fi
 echo "Built $APP"
-[[ "${1:-}" == "--run" ]] && { pkill -x NotchApp || true; open "$APP"; }
+[[ "${1:-}" == "--run" ]] && { pkill -x NotchApp || true; for _ in {1..50}; do pgrep -x NotchApp >/dev/null || break; sleep 0.1; done; open "$APP"; }
