@@ -1,7 +1,7 @@
 # Team rules (wave 2)
 
-- Work in your own copy: `rsync -a --exclude .build --exclude build ~/NotchApp/ $SCRATCH/agents2/<you>/` where
-  SCRATCH=/private/tmp/claude-501/-Users-danu/93ad8424-e575-4fe0-8b65-a2357f860f14/scratchpad. Never edit ~/NotchApp.
+- Work in your own copy: `rsync -a --exclude .build --exclude build ~/Code/perch/ $SCRATCH/agents2/<you>/` where
+  SCRATCH=/private/tmp/claude-501/-Users-danu/93ad8424-e575-4fe0-8b65-a2357f860f14/scratchpad. Never edit ~/Code/perch.
 - Edit ONLY the files/folders you own (listed in your brief). Need something elsewhere? Put the exact change in your report.
 - Public APIs other folders use must keep their names/signatures: NotchModel (open/close/selectTab/present/dismissActivity/
   activity/isExpanded/tab/notchSize/quietMode/suppressHoverOpen), LiveActivity, NotchContext, NowPlaying (title/artist/
