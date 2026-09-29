@@ -11,6 +11,8 @@ cp .build/release/Perch "$APP/Contents/MacOS/"
 clang -dynamiclib -fobjc-arc -O2 -framework Foundation Helper/MediaRemoteHelper.m \
   -o "$APP/Contents/Resources/MediaRemoteHelper.dylib"
 cp Helper/media-remote.pl "$APP/Contents/Resources/"
+# App icon (regenerate with: swift tools/make-icon.swift .)
+cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -19,6 +21,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key><string>Perch</string>
   <key>CFBundleIdentifier</key><string>local.notchapp</string>
   <key>CFBundleExecutable</key><string>Perch</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.2</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
