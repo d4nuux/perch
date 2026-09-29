@@ -116,7 +116,8 @@ struct NotchView: View {
     var body: some View {
         let open = model.isOpen(on: screen.displayID)
         let notch = screen.notchSize
-        let idle = IdleState.resolve(display.idleContent, nowPlaying: nowPlaying, calendar: calendar)
+        let idle = IdleState.resolve(model.isLocked && display.idleContent == .calendar ? .nowPlaying : display.idleContent,
+                                     nowPlaying: nowPlaying, calendar: calendar)
         let size = model.size(notch: notch, expanded: open, idleExtra: idle.extraWidth)
         // Simulated notch (no hardware cutout): flat top flush with the screen edge, pill-round bottom.
         let top: CGFloat = open ? 14 : (screen.isSimulated ? 0 : 6)
@@ -280,9 +281,14 @@ struct Header: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            TabButton(icon: "house.fill", selected: model.tab == .home) { select(.home) }
-            TabButton(icon: "calendar", selected: model.tab == .calendar) { select(.calendar) }
-            TabButton(icon: "tray.fill", selected: model.tab == .shelf) { select(.shelf) }
+            if model.isLocked {
+                Image(systemName: "lock.fill").font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.5)).padding(.leading, 6)
+            } else {
+                TabButton(icon: "house.fill", selected: model.tab == .home) { select(.home) }
+                TabButton(icon: "calendar", selected: model.tab == .calendar) { select(.calendar) }
+                TabButton(icon: "tray.fill", selected: model.tab == .shelf) { select(.shelf) }
+            }
             Spacer(minLength: screen.notchSize.width)
             if battery.hasBattery {
                 HStack(spacing: 4) {
@@ -291,14 +297,16 @@ struct Header: View {
                         .foregroundStyle(battery.level <= 20 && !battery.isCharging ? .red : .white)
                 }
             }
-            Button { SettingsWindow.show() } label: {
-                Image(systemName: "gearshape.fill").font(.system(size: 11, weight: .semibold))
+            if !model.isLocked {
+                Button { SettingsWindow.show() } label: {
+                    Image(systemName: "gearshape.fill").font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.plain).foregroundStyle(.white.opacity(0.5))
+                Button { NSApp.terminate(nil) } label: {
+                    Image(systemName: "power").font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.plain).foregroundStyle(.white.opacity(0.5))
             }
-            .buttonStyle(.plain).foregroundStyle(.white.opacity(0.5))
-            Button { NSApp.terminate(nil) } label: {
-                Image(systemName: "power").font(.system(size: 11, weight: .semibold))
-            }
-            .buttonStyle(.plain).foregroundStyle(.white.opacity(0.5))
         }
         .frame(height: 24)
     }

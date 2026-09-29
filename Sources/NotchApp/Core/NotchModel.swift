@@ -16,6 +16,9 @@ final class NotchModel: ObservableObject {
     /// True while something asks for quiet (e.g. user is in a meeting and chose "disable activities
     /// during events"). Non-essential activities (activity.*) should not present while set; HUDs still do.
     @Published var quietMode = false
+    /// Screen is locked and the notch is on the lock screen: only Home (music) and activities;
+    /// calendar, shelf and settings stay hidden.
+    @Published var isLocked = false
     /// Notch size of the primary panel's screen (each panel also has its own `NotchScreen.notchSize`).
     @Published var notchSize = CGSize(width: 190, height: 32)
     /// Display whose notch is open. Only one panel is expanded at a time (with "All displays").
@@ -94,7 +97,7 @@ final class NotchModel: ObservableObject {
     /// Opens on `display`, else the display under the pointer, else the primary one. If another
     /// display's notch is open, it moves there (that one collapses).
     func open(tab: Tab? = nil, on display: CGDirectDisplayID? = nil) {
-        if let tab { self.tab = tab }
+        if isLocked { self.tab = .home } else if let tab { self.tab = tab }
         let target = display ?? pointerDisplay ?? primaryDisplay
         if isExpanded {
             if let target, target != expandedDisplay {
@@ -112,6 +115,7 @@ final class NotchModel: ObservableObject {
     }
 
     func selectTab(offset: Int) {
+        guard !isLocked else { return }
         let all = Tab.allCases
         let i = all.firstIndex(of: tab) ?? 0
         let next = min(max(i + offset, 0), all.count - 1)

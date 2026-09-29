@@ -88,7 +88,7 @@ final class HUDSettings: ObservableObject {
             K.style: HUDBarStyle.solid.rawValue, K.volumeStyle: HUDBarStyle.solid.rawValue,
             K.brightnessStyle: HUDBarStyle.solid.rawValue, K.keyboardStyle: HUDBarStyle.solid.rawValue,
             K.animation: HUDAnimationSpeed.fast.rawValue, K.percentage: false, K.label: false, K.duration: 1.5,
-            K.volumeLock: false, K.brightnessLock: false, K.keyboardLock: false,
+            K.volumeLock: true, K.brightnessLock: true, K.keyboardLock: true,
             K.volumeFocus: false, K.brightnessFocus: false, K.keyboardFocus: false,
             K.external: ExternalBrightnessMode.auto.rawValue,
         ])

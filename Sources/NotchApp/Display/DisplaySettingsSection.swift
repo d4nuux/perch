@@ -29,6 +29,9 @@ struct DisplaySettingsSection: View {
             SettingToggle("Simulated notch on displays without one",
                           detail: "Draws a notch-shaped pill under the menu bar on external displays.",
                           isOn: $display.simulateNotch)
+            SettingToggle("On the lock screen",
+                          detail: "Music controls, volume and brightness, and live activities while locked. Calendar, shelf and settings stay hidden.",
+                          isOn: $display.showOnLockScreen)
         }
 
         Section {

@@ -56,6 +56,8 @@ final class DisplaySettings: ObservableObject {
     @Published var hideInMissionControl: Bool { didSet { d.set(hideInMissionControl, forKey: "display.hideInMissionControl") } }
     /// Fade the notch out while a game is the frontmost app.
     @Published var hideWhileGaming: Bool { didSet { d.set(hideWhileGaming, forKey: "display.hideWhileGaming") } }
+    /// Keep the notch (music, HUDs, activities) working on the lock screen.
+    @Published var showOnLockScreen: Bool { didSet { d.set(showOnLockScreen, forKey: "display.showOnLockScreen") } }
     @Published var idleContent: IdleContent { didSet { d.set(idleContent.rawValue, forKey: "display.idleContent") } }
 
     private init() {
@@ -75,6 +77,7 @@ final class DisplaySettings: ObservableObject {
             "display.progressiveBlur": false,
             "display.hideInMissionControl": true,
             "display.hideWhileGaming": true,
+            "display.showOnLockScreen": true,
         ])
         showOn = ShowOn(rawValue: d.string(forKey: "display.showOn") ?? "") ?? .builtIn
         specificDisplayName = d.string(forKey: "display.specificName") ?? ""
@@ -90,6 +93,7 @@ final class DisplaySettings: ObservableObject {
         progressiveBlur = d.bool(forKey: "display.progressiveBlur")
         hideInMissionControl = d.bool(forKey: "display.hideInMissionControl")
         hideWhileGaming = d.bool(forKey: "display.hideWhileGaming")
+        showOnLockScreen = d.bool(forKey: "display.showOnLockScreen")
         idleContent = IdleContent(rawValue: d.string(forKey: "display.idleContent") ?? "") ?? .nowPlaying
     }
 }

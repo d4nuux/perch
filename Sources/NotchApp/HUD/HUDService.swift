@@ -36,10 +36,12 @@ final class HUDService {
         var locked = false, focus = false
         /// Per kind: handle keys while locked / step aside during Focus.
         var onLock: Set<HUDKind> = [], hideInFocus: Set<HUDKind> = []
+        /// The notch itself is shown on the lock screen (Display setting); without it no HUD can show.
+        var notchOnLock = true
         var externalMode: ExternalBrightnessMode = .off
 
         func suppressed(_ kind: HUDKind) -> Bool {
-            (locked && !onLock.contains(kind)) || (focus && hideInFocus.contains(kind))
+            (locked && (!notchOnLock || !onLock.contains(kind))) || (focus && hideInFocus.contains(kind))
         }
     }
     private let gateLock = NSLock()
@@ -76,6 +78,9 @@ final class HUDService {
                 self?.updateGate { g in if on { g[keyPath: path].insert(kind) } else { g[keyPath: path].remove(kind) } }
             }.store(in: &cancellables)
         }
+        DisplaySettings.shared.$showOnLockScreen
+            .sink { [weak self] on in self?.updateGate { $0.notchOnLock = on } }
+            .store(in: &cancellables)
         rule(hud.$volumeOnLockScreen, .volume, \.onLock)
         rule(hud.$brightnessOnLockScreen, .brightness, \.onLock)
         rule(hud.$keyboardOnLockScreen, .keyboard, \.onLock)

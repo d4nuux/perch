@@ -9,7 +9,9 @@ final class NotchPanel: NSPanel {
 
 /// One notch panel on one screen. All hosts share the same model/service objects.
 private final class ScreenHost {
-    let panel: NotchPanel
+    /// The panel on screen: `normalPanel`, or a stand-in moved to the lock-screen space while locked.
+    var panel: NotchPanel
+    let normalPanel: NotchPanel
     let state: NotchScreen
     var screenFrame: CGRect = .zero
     var hidden = false
@@ -18,6 +20,7 @@ private final class ScreenHost {
 
     init(panel: NotchPanel, state: NotchScreen) {
         self.panel = panel
+        self.normalPanel = panel
         self.state = state
     }
 
@@ -81,6 +84,7 @@ final class NotchController {
             .sink { [weak self] _ in self?.layout() }
             .store(in: &cancellables)
 
+        observeLock()
         observeIdleInputs()
         installDragMonitors()
         layout()
@@ -201,6 +205,70 @@ final class NotchController {
         }
     }
 
+    // MARK: Lock screen
+
+    private var lockObservers: [NSObjectProtocol] = []
+
+    private func observeLock() {
+        let dnc = DistributedNotificationCenter.default()
+        for (name, locked) in [("com.apple.screenIsLocked", true), ("com.apple.screenIsUnlocked", false)] {
+            lockObservers.append(dnc.addObserver(forName: .init(name), object: nil, queue: .main) {
+                [weak self] _ in self?.setLocked(locked)
+            })
+        }
+        // Backstop for a missed unlock (sleep/wake, fast user switching).
+        lockObservers.append(NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.sessionDidBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.setLocked(Self.sessionIsLocked()) })
+    }
+
+    private static func sessionIsLocked() -> Bool {
+        guard let d = CGSessionCopyCurrentDictionary() as? [String: Any] else { return false }
+        return (d["CGSSessionScreenIsLocked"] as? Bool) ?? ((d["CGSSessionScreenIsLocked"] as? Int) ?? 0 != 0)
+    }
+
+    /// Locked: each notch moves into a fresh panel placed in the lock-screen space (SkyLight), so
+    /// it keeps working above the lock screen. Unlocked: content goes back to the normal panel and
+    /// the stand-in is discarded (a window can't be taken back out of that space reliably).
+    private func setLocked(_ locked: Bool) {
+        let wanted = locked && display.showOnLockScreen && SkyLightBridge.shared.isAvailable
+        guard wanted != model.isLocked else { return }
+        if model.isExpanded { model.close() }
+        model.isLocked = wanted
+        for h in hosts {
+            if wanted { moveToLockScreen(h) } else { restoreFromLockScreen(h) }
+        }
+    }
+
+    private func moveToLockScreen(_ h: ScreenHost) {
+        guard h.panel === h.normalPanel, let content = h.normalPanel.contentView else { return }
+        let lock = Self.makePanel()
+        h.normalPanel.contentView = NSView()
+        lock.contentView = content
+        lock.setFrame(h.normalPanel.frame, display: false)
+        lock.sharingType = h.normalPanel.sharingType
+        lock.alphaValue = h.hidden ? 0 : 1
+        h.normalPanel.orderOut(nil)
+        h.panel = lock
+        lock.orderFrontRegardless()
+        if !SkyLightBridge.shared.delegate(lock) { restoreFromLockScreen(h) }
+    }
+
+    private func restoreFromLockScreen(_ h: ScreenHost) {
+        guard h.panel !== h.normalPanel else { return }
+        let lock = h.panel
+        let content = lock.contentView
+        lock.orderOut(nil)
+        lock.contentView = NSView()
+        h.normalPanel.contentView = content
+        h.normalPanel.setFrame(lock.frame, display: false)
+        h.normalPanel.alphaValue = h.hidden ? 0 : 1
+        h.normalPanel.ignoresMouseEvents = true
+        h.panel = h.normalPanel
+        h.normalPanel.orderFrontRegardless()
+        lock.close()
+    }
+
     // MARK: Mouse tracking
 
     private func setTimer(interval: TimeInterval) {
@@ -292,7 +360,8 @@ final class NotchController {
     }
 
     private func recomputeIdle() {
-        idleExtra = IdleState.resolve(display.idleContent, nowPlaying: nowPlaying, calendar: calendar).extraWidth
+        idleExtra = IdleState.resolve(model.isLocked && display.idleContent == .calendar ? .nowPlaying : display.idleContent,
+                                      nowPlaying: nowPlaying, calendar: calendar).extraWidth
     }
 
     private func trackMouse() {
