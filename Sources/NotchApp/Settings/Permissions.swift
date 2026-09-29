@@ -277,7 +277,7 @@ final class PermissionCenter: NSObject, ObservableObject, CBCentralManagerDelega
     }
 }
 
-/// One status row: icon, name, status, action button.
+/// One status row: icon, name, status badge, action button.
 struct PermissionRow: View {
     let permission: Permission
     @ObservedObject var center = PermissionCenter.shared
@@ -287,21 +287,35 @@ struct PermissionRow: View {
     var body: some View {
         let state = center.state(permission)
         HStack(spacing: 10) {
-            SettingsIcon(symbol: permission.symbol, color: permission.color)
-            VStack(alignment: .leading, spacing: 1) {
+            SettingsIcon(symbol: permission.symbol, color: permission.color, size: 26)
+            VStack(alignment: .leading, spacing: 2) {
                 Text(permission.title)
-                Text(permission.detail).font(.caption).foregroundStyle(.secondary)
+                Text(permission.detail).font(SettingsMetrics.detailFont).foregroundStyle(.secondary)
             }
-            Spacer()
-            HStack(spacing: 4) {
-                Circle().fill(state.color).frame(width: 7, height: 7)
-                Text(state.label).font(.caption).foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            StatusBadge(text: state.label, color: state.color, symbol: state.badgeSymbol)
+            Group {
+                if permission.canRequest, state == .notDetermined || (promptWhenUndecided && state == .notAllowed) {
+                    Button("Allow") { center.request(permission) }
+                } else if !promptWhenUndecided || state != .granted {
+                    Button(state == .granted || state == .onDemand ? "Open Settings" : "Fix in Settings…") {
+                        center.openSettings(permission)
+                    }
+                }
             }
-            if permission.canRequest, state == .notDetermined || (promptWhenUndecided && state == .notAllowed) {
-                Button("Allow") { center.request(permission) }.controlSize(.small)
-            } else if !promptWhenUndecided || state != .granted {
-                Button("Open Settings") { center.openSettings(permission) }.controlSize(.small)
-            }
+            .controlSize(.small)
+        }
+        .padding(.vertical, 1)
+    }
+}
+
+extension PermissionState {
+    var badgeSymbol: String? {
+        switch self {
+        case .granted: "checkmark"
+        case .denied, .restricted: "xmark"
+        case .notDetermined, .notAllowed: "exclamationmark"
+        case .onDemand: nil
         }
     }
 }
@@ -309,24 +323,37 @@ struct PermissionRow: View {
 struct PermissionsPane: View {
     @ObservedObject var center = PermissionCenter.shared
 
+    private var checkable: [Permission] { Permission.allCases.filter { center.state($0) != .onDemand } }
+    private var onDemand: [Permission] { Permission.allCases.filter { center.state($0) == .onDemand } }
+
     var body: some View {
-        Form {
+        SettingsPage(.permissions) {
             Section {
-                ForEach(Permission.allCases) { PermissionRow(permission: $0) }
-            } footer: {
-                Text("Automation and audio recording can't be checked ahead of time; macOS asks the first time they're used.")
-                    .font(.caption).foregroundStyle(.secondary)
+                ForEach(checkable) { PermissionRow(permission: $0) }
+            } header: {
+                SectionHeader("Access", detail: summary)
             }
-            Section {
-                HStack {
-                    Text("Clear every decision so macOS asks again.")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Reset All Permissions…") { center.confirmAndResetAll() }
+            if !onDemand.isEmpty {
+                Section {
+                    ForEach(onDemand) { PermissionRow(permission: $0) }
+                } header: {
+                    SectionHeader("Asked when first used")
+                } footer: {
+                    SectionFooter("macOS can't report these ahead of time; it asks the first time NotchApp uses them.")
+                }
+            }
+            Section("Troubleshooting") {
+                SettingRow("Reset all permissions", detail: "Clears every decision so macOS asks again.") {
+                    Button("Reset…", role: .destructive) { center.confirmAndResetAll() }
                 }
             }
         }
-        .formStyle(.grouped)
         .onAppear { center.refresh() }
+    }
+
+    private var summary: String {
+        let granted = checkable.filter { center.state($0) == .granted }.count
+        return granted == checkable.count ? "Everything NotchApp can use is allowed."
+                                          : "\(granted) of \(checkable.count) allowed."
     }
 }

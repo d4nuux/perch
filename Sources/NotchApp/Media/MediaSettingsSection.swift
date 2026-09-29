@@ -16,43 +16,79 @@ struct MediaSettingsSection: View {
     }
 
     var body: some View {
-        Picker("Source", selection: $s.source) {
-            ForEach(MediaSettings.Source.allCases) { Text($0.label).tag($0) }
-        }
-        Picker("Extra control (left)", selection: extra(\.extraLeft, other: \.extraRight)) {
-            ForEach(MediaSettings.ExtraControl.allCases) { Text($0.label).tag($0) }
-        }
-        Picker("Extra control (right)", selection: extra(\.extraRight, other: \.extraLeft)) {
-            ForEach(MediaSettings.ExtraControl.allCases) { Text($0.label).tag($0) }
-        }
-        Toggle("Clean up track titles", isOn: $s.cleanTitles)
-            .help("Hides tags like “(Remastered 2011)” or “[Official Video]”.")
-        Picker("Artwork style", selection: $s.artworkStyle) {
-            ForEach(MediaSettings.ArtworkStyle.allCases) { Text($0.label).tag($0) }
-        }
-        Toggle("Tint player with artwork color", isOn: $s.artworkColor)
-            .disabled(s.artworkStyle == .mono)
-        Toggle("Flip artwork on track change", isOn: $s.artworkFlip)
-        Toggle("Show explicit badge", isOn: $s.explicitBadge)
-            .help("Uses the player's explicit flag when it reports one, otherwise looks the track up in the iTunes Search API (one request per track, cached).")
-        Toggle("Hide live activity while the playing app is in front", isOn: $s.hideWhileSourceFrontmost)
-        if s.source == .automatic {
-            DisclosureGroup("Ignored sources") {
-                ForEach(ignoreCandidates, id: \.self) { id in
-                    Toggle(isOn: ignored(id)) {
-                        HStack(spacing: 6) {
-                            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
-                                Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
-                                    .resizable().frame(width: 16, height: 16)
-                                Text(FileManager.default.displayName(atPath: url.path)
-                                    .replacingOccurrences(of: ".app", with: ""))
-                            } else {
-                                Text(id)
+        Section {
+            SettingPicker("Source", detail: sourceDetail, selection: $s.source) {
+                ForEach(MediaSettings.Source.allCases) { Text($0.label).tag($0) }
+            }
+            if s.source == .automatic {
+                DisclosureGroup {
+                    ForEach(ignoreCandidates, id: \.self) { id in
+                        Toggle(isOn: ignored(id)) {
+                            HStack(spacing: 6) {
+                                if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
+                                    Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
+                                        .resizable().frame(width: 16, height: 16)
+                                    Text(FileManager.default.displayName(atPath: url.path)
+                                        .replacingOccurrences(of: ".app", with: ""))
+                                } else {
+                                    Text(id)
+                                }
                             }
                         }
+                        .toggleStyle(.checkbox)
                     }
+                } label: {
+                    SettingLabel(title: "Ignored sources",
+                                 detail: s.ignoredSources.isEmpty ? "Apps whose playback never shows in the notch."
+                                                                  : "\(s.ignoredSources.count) ignored")
                 }
             }
+            SettingToggle("Hide while the playing app is in front",
+                          detail: "The Now Playing activity steps aside when you're already looking at the player.",
+                          isOn: $s.hideWhileSourceFrontmost)
+        } header: {
+            SectionHeader("Source")
+        }
+
+        Section {
+            SettingPicker("Left of the controls", selection: extra(\.extraLeft, other: \.extraRight)) {
+                ForEach(MediaSettings.ExtraControl.allCases) { Text($0.label).tag($0) }
+            }
+            SettingPicker("Right of the controls", selection: extra(\.extraRight, other: \.extraLeft)) {
+                ForEach(MediaSettings.ExtraControl.allCases) { Text($0.label).tag($0) }
+            }
+        } header: {
+            SectionHeader("Extra controls")
+        } footer: {
+            SectionFooter("Shown on either side of play / pause in the open player. Each control can be used once.")
+        }
+
+        Section("Artwork") {
+            SettingPicker("Style", selection: $s.artworkStyle) {
+                ForEach(MediaSettings.ArtworkStyle.allCases) { Text($0.label).tag($0) }
+            }
+            SettingToggle("Tint player with artwork color",
+                          detail: s.artworkStyle == .mono ? "Not available with Monochrome artwork." : nil,
+                          isOn: $s.artworkColor)
+                .disabled(s.artworkStyle == .mono)
+            SettingToggle("Flip artwork on track change", isOn: $s.artworkFlip)
+        }
+
+        Section("Track info") {
+            SettingToggle("Clean up track titles", detail: "Hides tags like “(Remastered 2011)” or “[Official Video]”.",
+                          isOn: $s.cleanTitles)
+            SettingToggle("Show explicit badge",
+                          detail: "Uses the player's explicit flag when it reports one, otherwise looks the track up "
+                              + "in the iTunes Search API (one request per track, cached).",
+                          isOn: $s.explicitBadge)
+        }
+    }
+
+    private var sourceDetail: String {
+        switch s.source {
+        case .automatic: "Whatever is playing, from any app or browser."
+        case .music: "Only Apple Music."
+        case .spotify: "Only Spotify."
         }
     }
 

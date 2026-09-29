@@ -1,50 +1,72 @@
 import SwiftUI
 
-/// Calendar rows for the Settings window (a Form section). Owner: Calendar agent.
+/// Calendar sections for the Settings window. Owner: Calendar agent.
 /// Persist new options in your own ObservableObject in this folder; don't grow Core/AppSettings.
 struct CalendarSettingsSection: View {
     @ObservedObject var s = CalendarSettings.shared
+    @ObservedObject private var app = AppSettings.shared
 
     var body: some View {
-        Picker("Calendar tab layout", selection: $s.layout) {
-            Text("Week strip").tag(CalendarSettings.Layout.week)
-            Text("Agenda").tag(CalendarSettings.Layout.agenda)
-        }
-        calendarList
-        Picker("Alert before events", selection: $s.alertLeadMinutes) {
-            ForEach(CalendarSettings.leadChoices, id: \.self) { Text("\($0) min").tag($0) }
-        }
-        Toggle("Alert when events start", isOn: $s.alertAtStart)
-        Toggle("Play sound with alerts", isOn: $s.alertSound)
-        Toggle("Disable activities during events", isOn: $s.quietDuringEvents)
-            .help("While an accepted, timed event is in progress, other live activities stay hidden. HUDs still show.")
-        Toggle("Time to leave", isOn: $s.timeToLeave)
-            .help("For events with a physical address, alerts when it's time to leave based on travel time from your location.")
-        if s.timeToLeave {
-            Picker("Travel by", selection: $s.transport) {
-                Text("Driving").tag(CalendarSettings.Transport.driving)
-                Text("Walking").tag(CalendarSettings.Transport.walking)
-                Text("Transit").tag(CalendarSettings.Transport.transit)
+        Group {
+            Section("Calendar tab") {
+                SettingPicker("Layout", selection: $s.layout, segmented: true) {
+                    Text("Week strip").tag(CalendarSettings.Layout.week)
+                    Text("Agenda").tag(CalendarSettings.Layout.agenda)
+                }
+                calendarList
+                SettingToggle("Show weather", detail: "Today's forecast at the top of the Calendar tab.",
+                              isOn: $s.showWeather)
             }
-            Stepper("Extra buffer: \(s.leaveBufferMinutes) min", value: $s.leaveBufferMinutes, in: 0...30, step: 5)
+
+            Section("Alerts") {
+                SettingPicker("Alert before events", selection: $s.alertLeadMinutes) {
+                    ForEach(CalendarSettings.leadChoices, id: \.self) { Text("\($0) min").tag($0) }
+                }
+                SettingToggle("Alert when events start", isOn: $s.alertAtStart)
+                SettingToggle("Play sound with alerts", isOn: $s.alertSound)
+                SettingToggle("Quiet during events",
+                              detail: "While an accepted, timed event is in progress, other live activities stay hidden. HUDs still show.",
+                              isOn: $s.quietDuringEvents)
+                SettingToggle("Hourly chime", detail: "A short chime at the top of every hour.", isOn: $s.hourlyChime)
+            }
+
+            Section {
+                SettingToggle("Time to leave",
+                              detail: "For events with a physical address, alerts when it's time to leave based on travel time from your location.",
+                              isOn: $s.timeToLeave)
+                if s.timeToLeave {
+                    SettingPicker("Travel by", selection: $s.transport, segmented: true) {
+                        Label("Driving", systemImage: CalendarSettings.Transport.driving.symbol)
+                            .tag(CalendarSettings.Transport.driving)
+                        Label("Walking", systemImage: CalendarSettings.Transport.walking.symbol)
+                            .tag(CalendarSettings.Transport.walking)
+                        Label("Transit", systemImage: CalendarSettings.Transport.transit.symbol)
+                            .tag(CalendarSettings.Transport.transit)
+                    }
+                    SettingStepper("Extra buffer", detail: "Added on top of the travel time.",
+                                   value: $s.leaveBufferMinutes, in: 0...30, step: 5, format: { "\($0) min" })
+                }
+            } header: {
+                SectionHeader("Travel")
+            }
         }
-        Toggle("Hourly chime", isOn: $s.hourlyChime)
-        Toggle("Show weather in Calendar", isOn: $s.showWeather)
-        // Shared weather options: shown regardless of the toggle above (Lock Screen uses them too).
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Weather").font(.headline)
-            Text("Used by Calendar and Lock Screen").font(.caption).foregroundStyle(.secondary)
+        .disabled(!app.calendarEnabled)
+
+        Section {
+            WeatherSettingsSection()
+        } header: {
+            SectionHeader("Weather", detail: "Used by the Calendar tab and the Lock Screen.")
         }
-        .padding(.top, 6)
-        WeatherSettingsSection()
     }
 
     @ViewBuilder private var calendarList: some View {
         if s.calendars.isEmpty {
-            LabeledContent("Calendars", value: "Grant calendar access to choose")
-                .onAppear { s.loadCalendars() }
+            SettingRow("Calendars", detail: "Grant calendar access in Permissions to choose which calendars show.") {
+                Button("Permissions…") { SettingsNavigation.shared.pane = .permissions }
+            }
+            .onAppear { s.loadCalendars() }
         } else {
-            DisclosureGroup("Calendars shown (\(s.calendars.count - s.calendars.filter { s.hiddenCalendars.contains($0.id) }.count)/\(s.calendars.count))") {
+            DisclosureGroup {
                 ForEach(s.calendars) { c in
                     Toggle(isOn: Binding(get: { !s.hiddenCalendars.contains(c.id) },
                                          set: { s.setShown(c.id, $0) })) {
@@ -56,7 +78,11 @@ struct CalendarSettingsSection: View {
                             }
                         }
                     }
+                    .toggleStyle(.checkbox)
                 }
+            } label: {
+                SettingLabel(title: "Calendars shown",
+                             detail: "\(s.calendars.count - s.calendars.filter { s.hiddenCalendars.contains($0.id) }.count) of \(s.calendars.count)")
             }
             .onAppear { s.loadCalendars() }
         }
