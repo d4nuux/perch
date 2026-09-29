@@ -13,8 +13,8 @@ final class SkyLightBridge {
     private typealias MainConnectionID = @convention(c) () -> Int32
     private typealias SpaceCreate = @convention(c) (Int32, Int32, Int32) -> Int32
     private typealias SpaceSetAbsoluteLevel = @convention(c) (Int32, Int32, Int32) -> Int32
-    private typealias ShowSpaces = @convention(c) (Int32, CFArray) -> Int32
-    private typealias SpaceAddWindows = @convention(c) (Int32, Int32, CFArray, Int32) -> Int32
+    private typealias ShowSpaces = @convention(c) (Int32, CFArray) -> Void
+    private typealias SpaceAddWindows = @convention(c) (Int32, Int32, CFArray, Int32) -> Void
 
     static let frameworkPath = "/System/Library/PrivateFrameworks/SkyLight.framework/Versions/A/SkyLight"
     static let symbolNames = [
@@ -34,7 +34,6 @@ final class SkyLightBridge {
     private var connection: Int32 = 0
     private var space: Int32 = 0
     private var disabledReason: String?
-    private var warnedAddWindows = false
 
     private init() {
         guard let handle = dlopen(Self.frameworkPath, RTLD_LAZY)
@@ -69,12 +68,11 @@ final class SkyLightBridge {
         guard connection != 0 else { disable("SLSMainConnectionID returned 0"); return false }
         let s = spaceCreate(connection, 1, 0)
         guard s != 0 else { disable("SLSSpaceCreate returned 0"); return false }
-        if setAbsoluteLevel(connection, s, Self.lockScreenLevel) != 0 {
-            disable("SLSSpaceSetAbsoluteLevel failed"); return false
-        }
-        if showSpaces(connection, [NSNumber(value: s)] as CFArray) != 0 {
-            disable("SLSShowSpaces failed"); return false
-        }
+        // SLSShowSpaces / SLSSpaceAddWindowsAndRemoveFromSpaces return void; reading a result
+        // gave register garbage (0xB0000000) and made us bail out although the calls worked.
+        let lvl = setAbsoluteLevel(connection, s, Self.lockScreenLevel)
+        showSpaces(connection, [NSNumber(value: s)] as CFArray)
+        log.info("lock space \(s) level=\(lvl)")
         space = s
         return true
     }
@@ -83,12 +81,8 @@ final class SkyLightBridge {
     @discardableResult
     func delegate(_ window: NSWindow) -> Bool {
         guard ensureSpace(), let addWindows, window.windowNumber > 0 else { return false }
-        let r = addWindows(connection, space, [NSNumber(value: window.windowNumber)] as CFArray, 7)
-        if r != 0, !warnedAddWindows {
-            warnedAddWindows = true
-            log.error("SLSSpaceAddWindowsAndRemoveFromSpaces returned \(r, privacy: .public)")
-        }
-        return r == 0
+        addWindows(connection, space, [NSNumber(value: window.windowNumber)] as CFArray, 7)
+        return true
     }
 
     private func disable(_ reason: String) {

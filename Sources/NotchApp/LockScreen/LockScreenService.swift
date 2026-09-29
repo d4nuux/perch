@@ -1,3 +1,4 @@
+import os
 import AppKit
 import Combine
 import EventKit
@@ -113,7 +114,10 @@ final class LockScreenService {
         return (d["CGSSessionScreenIsLocked"] as? Bool) ?? ((d["CGSSessionScreenIsLocked"] as? Int) ?? 0 != 0)
     }
 
+    private static let log = Logger(subsystem: "NotchApp", category: "LockScreen")
+
     private func setLocked(_ locked: Bool) {
+        Self.log.info("lock notification locked=\(locked)")
         guard locked != isLocked else { return }
         isLocked = locked
         update()
@@ -143,6 +147,7 @@ final class LockScreenService {
         keepAwake.held = master && isLocked && prefs.keepAwake
         let wantShown = master && SkyLightBridge.shared.isAvailable
             && (isLocked || (isScreensaver && prefs.showOnScreensaver))
+        Self.log.info("update locked=\(self.isLocked) saver=\(self.isScreensaver) master=\(master) skylight=\(SkyLightBridge.shared.isAvailable) show=\(wantShown)")
         if wantShown { show() } else { hide() }
     }
 
@@ -163,17 +168,19 @@ final class LockScreenService {
         guard !isShowing else { return }
         let p = panel ?? makePanel()
         panel = p
-        guard layout() else { hide(); return }
+        guard layout() else { Self.log.error("show: layout failed (no screen)"); hide(); return }
         subscribeContent()
         p.alphaValue = 0
         p.ignoresMouseEvents = false
         p.orderFrontRegardless()   // never makeKey: the password field keeps focus
         guard SkyLightBridge.shared.delegate(p) else {
             // Could not move it to the lock level: don't leave a stray window on the desktop.
+            Self.log.error("show: delegate to lock space failed (window \(p.windowNumber))")
             hide()
             return
         }
         isShowing = true
+        Self.log.info("show: widgets on lock screen, frame \(NSStringFromRect(p.frame), privacy: .public)")
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.3
             p.animator().alphaValue = 1
