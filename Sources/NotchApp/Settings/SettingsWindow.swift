@@ -240,6 +240,8 @@ struct GesturesPane: View {
                     Toggle("Haptic feedback", isOn: $gestures.haptics)
                     Toggle("Swipe up to dismiss live activity", isOn: $gestures.swipeToDismiss)
                         .help("Swipe up on the closed notch to hide the current activity.")
+                    Toggle("Swipe sideways to cycle live activities", isOn: $gestures.swipeToCycle)
+                        .help("When several activities are recent (page dots show), swipe sideways on the closed notch to switch between them. Takes precedence over skipping tracks.")
                     Picker("Sensitivity", selection: $gestures.sensitivity) {
                         ForEach(GestureSettings.Sensitivity.allCases) { Text($0.title).tag($0) }
                     }

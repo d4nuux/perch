@@ -37,6 +37,39 @@ final class NotchModel: ObservableObject {
     /// An interactive activity (e.g. meeting alert) temporarily covered by another one; restored after.
     private var suspended: (activity: LiveActivity, remaining: TimeInterval?)?
 
+    /// One entry of the swipe-to-cycle list. `expires == nil` = persistent (until dismissed).
+    struct RecentActivity {
+        let activity: LiveActivity
+        var expires: Date?
+        var key: String { activity.key }
+    }
+
+    /// Recent / concurrent live activities (charging, Bluetooth, track peek, …), oldest first,
+    /// deduped by `LiveActivity.key`, at most `maxRecent`. Expired non-persistent entries are pruned.
+    /// HUDs (`hud.*`) are transient and never recorded. Swiping sideways on the closed notch cycles
+    /// through these (see `GestureService` for gesture precedence).
+    @Published private(set) var recentActivities: [RecentActivity] = []
+    /// Slide direction of the in-flight cycle transition: +1 = next (enters from trailing),
+    /// -1 = previous, 0 = regular present (crossfade).
+    @Published private(set) var cycleDirection = 0
+    static let maxRecent = 5
+    /// A cycled-to activity stays at least this long, even if it was about to expire.
+    static let cycleMinDwell: TimeInterval = 3
+    static let cycleAnimation = Animation.spring(response: 0.36, dampingFraction: 0.86)
+    /// Height added under the closed notch for the page dots.
+    static let pageDotsHeight: CGFloat = 9
+    private var pruneWork: DispatchWorkItem?
+    private var cycleResetWork: DispatchWorkItem?
+
+    /// Index of the showing activity in `recentActivities`, if it's part of the cycle.
+    var cycleIndex: Int? {
+        guard let key = activity?.key else { return nil }
+        return recentActivities.firstIndex { $0.key == key }
+    }
+
+    /// True when page dots should show under the closed notch (current activity + at least one more).
+    var showsPageDots: Bool { recentActivities.count > 1 && cycleIndex != nil }
+
     func currentSize(isPlaying: Bool) -> CGSize {
         size(notch: notchSize, expanded: isExpanded, idleExtra: isPlaying ? 84 : 0)
     }
@@ -45,7 +78,8 @@ final class NotchModel: ObservableObject {
     func size(notch: CGSize, expanded: Bool, idleExtra: CGFloat) -> CGSize {
         if expanded { return Self.expandedSize }
         if let a = activity {
-            return CGSize(width: notch.width + a.extraWidth, height: notch.height + a.belowHeight)
+            let dots = showsPageDots ? Self.pageDotsHeight : 0
+            return CGSize(width: notch.width + a.extraWidth, height: notch.height + a.belowHeight + dots)
         }
         return CGSize(width: notch.width + idleExtra, height: notch.height)
     }
@@ -97,9 +131,14 @@ final class NotchModel: ObservableObject {
         }
         deadline = duration.map { Date().addingTimeInterval($0) }
         if self.activity?.key == activity.key {
+            record(activity, expires: deadline)
             self.activity = activity
         } else {
-            withAnimation(Self.openAnimation) { self.activity = activity }
+            // Recorded inside the animation so the page dots' extra height springs in with it.
+            withAnimation(cycleDirection == 0 ? Self.openAnimation : Self.cycleAnimation) {
+                record(activity, expires: deadline)
+                self.activity = activity
+            }
         }
         guard let duration else { return }
         let work = DispatchWorkItem { [weak self] in self?.dismissActivity(key: activity.key) }
@@ -108,6 +147,7 @@ final class NotchModel: ObservableObject {
     }
 
     func dismissActivity(key: String) {
+        if let i = recentActivities.firstIndex(where: { $0.key == key }) { recentActivities.remove(at: i) }
         if suspended?.activity.key == key { suspended = nil }
         guard activity?.key == key else { return }
         if let s = suspended {
@@ -117,5 +157,64 @@ final class NotchModel: ObservableObject {
         }
         deadline = nil
         withAnimation(Self.closeAnimation) { activity = nil }
+    }
+
+    // MARK: Swipe to cycle
+
+    /// Shows the next (`offset` > 0) or previous recent activity with a slide, wrapping around.
+    /// Returns false (nothing happens) unless an activity from the cycle list is showing and there
+    /// is at least one other one. Must be called on the main thread.
+    @discardableResult
+    func cycleActivity(offset: Int) -> Bool {
+        prune()
+        let n = recentActivities.count
+        guard !isExpanded, n > 1, offset != 0, let i = cycleIndex else { return false }
+        let target = recentActivities[((i + offset) % n + n) % n]
+        let remaining = target.expires.map { max($0.timeIntervalSinceNow, Self.cycleMinDwell) }
+        // Set the direction in its own update first so the outgoing view's removal transition
+        // already slides the right way, then swap the activity on the next turn.
+        cycleDirection = offset > 0 ? 1 : -1
+        cycleResetWork?.cancel()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.cycleDirection != 0 else { return }
+            self.present(target.activity, duration: remaining)
+            let reset = DispatchWorkItem { [weak self] in self?.cycleDirection = 0 }
+            self.cycleResetWork = reset
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: reset)
+        }
+        return true
+    }
+
+    private func record(_ activity: LiveActivity, expires: Date?) {
+        guard !activity.key.hasPrefix("hud.") else { return }
+        if let i = recentActivities.firstIndex(where: { $0.key == activity.key }) {
+            recentActivities[i] = RecentActivity(activity: activity, expires: expires)
+        } else {
+            recentActivities.append(RecentActivity(activity: activity, expires: expires))
+        }
+        // Drop the oldest entries (never the one being shown).
+        while recentActivities.count > Self.maxRecent,
+              let i = recentActivities.firstIndex(where: { $0.key != activity.key }) {
+            recentActivities.remove(at: i)
+        }
+        prune()
+    }
+
+    /// Removes expired non-persistent entries (other than the showing one, which its own timer
+    /// dismisses) and schedules the next prune at the earliest remaining expiry so the dots stay
+    /// accurate. One pending work item at most; nothing scheduled when the list has no expiries.
+    private func prune() {
+        pruneWork?.cancel()
+        pruneWork = nil
+        let now = Date()
+        let current = activity?.key
+        let kept = recentActivities.filter { $0.key == current || ($0.expires ?? .distantFuture) > now }
+        if kept.count != recentActivities.count {
+            withAnimation(Self.closeAnimation) { recentActivities = kept }
+        }
+        guard let next = kept.filter({ $0.key != current }).compactMap(\.expires).min() else { return }
+        let work = DispatchWorkItem { [weak self] in self?.prune() }
+        pruneWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(next.timeIntervalSince(now), 0) + 0.05, execute: work)
     }
 }

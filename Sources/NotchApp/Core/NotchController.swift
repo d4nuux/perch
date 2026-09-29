@@ -43,6 +43,8 @@ final class NotchController {
     private let primaryPanel: NotchPanel
     private var hosts: [ScreenHost] = []
     private let fullscreen = FullscreenMonitor()
+    private let missionControl = MissionControlMonitor()
+    private let games = GameMonitor()
     private var cancellables = Set<AnyCancellable>()
     private var timer: Timer?
     private var timerInterval: TimeInterval = 0
@@ -65,6 +67,8 @@ final class NotchController {
         hosts = [makeHost(panel: primaryPanel)]
 
         fullscreen.onChange = { [weak self] in self?.layout() }
+        missionControl.onChange = { [weak self] in self?.layout() }
+        games.onChange = { [weak self] in self?.layout() }
 
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -123,6 +127,11 @@ final class NotchController {
     /// Rebuilds the panel set for the target screens and positions each one.
     private func layout() {
         fullscreen.setEnabled(display.hideInFullscreen)
+        missionControl.setEnabled(display.hideInMissionControl)
+        games.setEnabled(display.hideWhileGaming)
+        // Mission Control and games hide every panel; fullscreen only the affected display.
+        let hideAll = (display.hideInMissionControl && missionControl.isActive)
+            || (display.hideWhileGaming && games.isActive)
         let screens = Screens.targets(display)
 
         // Reuse hosts by display ID; hosts[0] (primary panel) takes the first target screen.
@@ -159,19 +168,36 @@ final class NotchController {
                                     width: p.width, height: p.height), display: true)
             h.panel.sharingType = display.hideFromCapture ? .none : .readOnly
 
-            let hide = display.hideInFullscreen && fullscreen.fullscreenDisplays.contains(id)
-            h.hidden = hide
-            if hide {
-                h.panel.orderOut(nil)
-            } else if !h.panel.isVisible {
-                h.panel.orderFrontRegardless()
-            }
+            let hide = hideAll || (display.hideInFullscreen && fullscreen.fullscreenDisplays.contains(id))
+            setHidden(h, hide)
         }
 
         model.primaryDisplay = hosts[0].displayID
         if model.notchSize != hosts[0].state.notchSize { model.notchSize = hosts[0].state.notchSize }
         if model.isExpanded, !hosts.contains(where: { !$0.hidden && $0.displayID == model.expandedDisplay }) {
             model.close()
+        }
+    }
+
+    /// Hides a panel by fading it out (alpha 0 + ignoring the mouse; it stays ordered in so the
+    /// restore is a smooth fade too). `trackMouse` keeps hidden panels click-through.
+    private func setHidden(_ h: ScreenHost, _ hide: Bool) {
+        let alpha: CGFloat = hide ? 0 : 1
+        if hide { h.panel.ignoresMouseEvents = true }
+        if !h.panel.isVisible {
+            h.panel.alphaValue = alpha
+            h.panel.orderFrontRegardless()
+        } else if h.hidden != hide {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = hide ? 0.18 : 0.3
+                ctx.timingFunction = CAMediaTimingFunction(name: hide ? .easeIn : .easeOut)
+                h.panel.animator().alphaValue = alpha
+            }
+        }
+        h.hidden = hide
+        if hide {
+            h.hoverSince = nil
+            if h.state.isHovering { h.state.isHovering = false }
         }
     }
 

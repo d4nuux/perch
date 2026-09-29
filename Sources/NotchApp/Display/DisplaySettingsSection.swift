@@ -37,6 +37,14 @@ struct DisplaySettingsSection: View {
         Toggle("Grow on hover", isOn: $display.hoverGrow)
         Toggle("Hide from screen recording & sharing", isOn: $display.hideFromCapture)
         Toggle("Hide when an app is fullscreen", isOn: $display.hideInFullscreen)
+        Toggle("Hide during Mission Control", isOn: $display.hideInMissionControl)
+            .help("Also App Exposé and Show Desktop. Needs Accessibility access.")
+        Toggle("Hide while playing games", isOn: $display.hideWhileGaming)
+            .help("Fades the notch out while a game (App Store games category or Steam) is the frontmost app.")
+        Toggle("Contrast outline", isOn: $display.contrastOutline)
+            .help("Draws a faint outline around the notch. Helps on dark wallpapers and external displays.")
+        Toggle("Soft bottom edge when open", isOn: $display.progressiveBlur)
+            .help("The open notch fades out through a blur at its bottom edge instead of a hard edge.")
         Picker("When idle show", selection: $display.idleContent) {
             ForEach(DisplaySettings.IdleContent.allCases) { Text($0.label).tag($0) }
         }

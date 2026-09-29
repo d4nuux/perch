@@ -6,7 +6,7 @@ import AppKit
 /// events otherwise), so a local monitor filtered to that window is enough.
 ///
 /// Collapsed: swipe down opens; swipe up dismisses the live activity (if enabled);
-/// horizontal swipe while music plays = next/previous track.
+/// horizontal swipe cycles live activities (if several) or, while music plays, skips tracks.
 /// Expanded: swipe up closes; horizontal swipe switches tabs.
 /// Directions follow the fingers regardless of the system "Natural scrolling" setting
 /// (optionally reversed). One action per gesture, dominant axis only, momentum ignored.
@@ -125,6 +125,15 @@ final class GestureService {
                 model.selectTab(offset: forward ? 1 : -1)
                 // At the first/last tab nothing changes; no haptic, let the event through.
                 return model.tab != before
+            }
+            // Collapsed horizontal precedence (first match wins; one action per gesture):
+            //  1. Swipe-to-cycle: a live activity from the recent list is showing and at least one
+            //     other is recent (page dots visible) -> next/previous activity. Only then does it
+            //     shadow track skipping, so with a single activity (or none) behaviour is unchanged.
+            //  2. Swipe-for-tracks: music is playing -> next/previous track.
+            // Vertical swipes never reach here (axis lock): down = open, up = swipe-to-dismiss.
+            if prefs.swipeToCycle, model.showsPageDots, model.cycleActivity(offset: forward ? 1 : -1) {
+                return true
             }
             if context.nowPlaying.isPlaying {
                 context.nowPlaying.send(forward ? "next track" : "previous track")

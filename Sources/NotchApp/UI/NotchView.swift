@@ -26,6 +26,63 @@ struct NotchShape: Shape {
     }
 }
 
+/// The notch outline without its top edge (which sits on the screen edge), for the contrast stroke.
+struct NotchOutline: Shape {
+    var topRadius: CGFloat
+    var bottomRadius: CGFloat
+
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(topRadius, bottomRadius) }
+        set { topRadius = newValue.first; bottomRadius = newValue.second }
+    }
+
+    func path(in r: CGRect) -> Path {
+        let t = topRadius, b = bottomRadius
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX, y: r.minY))
+        p.addQuadCurve(to: CGPoint(x: r.minX + t, y: r.minY + t), control: CGPoint(x: r.minX + t, y: r.minY))
+        p.addLine(to: CGPoint(x: r.minX + t, y: r.maxY - b))
+        p.addQuadCurve(to: CGPoint(x: r.minX + t + b, y: r.maxY), control: CGPoint(x: r.minX + t, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.maxX - t - b, y: r.maxY))
+        p.addQuadCurve(to: CGPoint(x: r.maxX - t, y: r.maxY - b), control: CGPoint(x: r.maxX - t, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.maxX - t, y: r.minY + t))
+        p.addQuadCurve(to: CGPoint(x: r.maxX, y: r.minY), control: CGPoint(x: r.maxX - t, y: r.minY))
+        return p
+    }
+}
+
+/// Behind-window blur for the open notch's soft bottom edge. Only instantiated while open with
+/// the setting on; the WindowServer does the blurring.
+struct BehindWindowBlur: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let v = NSVisualEffectView()
+        v.blendingMode = .behindWindow
+        v.material = .hudWindow
+        v.state = .active
+        v.appearance = NSAppearance(named: .darkAqua)
+        return v
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
+/// Page dots for the swipe-to-cycle activity list.
+struct PageDots: View {
+    let count: Int
+    let index: Int
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<count, id: \.self) { i in
+                Circle()
+                    .fill(Color.white.opacity(i == index ? 0.9 : 0.3))
+                    .frame(width: 4, height: 4)
+            }
+        }
+        .animation(NotchModel.cycleAnimation, value: index)
+    }
+}
+
 struct NotchView: View {
     @EnvironmentObject var model: NotchModel
     @EnvironmentObject var nowPlaying: NowPlaying
@@ -44,6 +101,17 @@ struct NotchView: View {
         insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.1)),
         removal: .opacity.animation(.easeIn(duration: 0.1))
     )
+    /// Swipe-to-cycle: `direction` +1 = next (enters from the trailing side), -1 = previous.
+    static func cycleTransition(_ direction: Int) -> AnyTransition {
+        let next = direction > 0
+        return .asymmetric(
+            insertion: .move(edge: next ? .trailing : .leading).combined(with: .opacity),
+            removal: .move(edge: next ? .leading : .trailing).combined(with: .opacity)
+        )
+    }
+    /// Height of the open notch's soft bottom edge (drawn below the content, outside `size`).
+    static let softEdgeHeight: CGFloat = 26
+    static let outlineColor = Color.white.opacity(0.18)
 
     var body: some View {
         let open = model.isOpen(on: screen.displayID)
@@ -54,12 +122,31 @@ struct NotchView: View {
         let top: CGFloat = open ? 14 : (screen.isSimulated ? 0 : 6)
         let bottom: CGFloat = open ? 28 : (screen.isSimulated ? min(notch.height / 2, 16) : 12)
         let grow: CGFloat = display.hoverGrow && screen.isHovering && !open ? 1.04 : 1
+        let soft = open && display.progressiveBlur
+        // With the soft edge the shape extends below the content and fades out over that strip.
+        let shapeHeight = size.height + (soft ? Self.softEdgeHeight : 0)
+        let shapeWidth = size.width + top * 2
 
         ZStack(alignment: .top) {
+            if soft {
+                BehindWindowBlur()
+                    .clipShape(NotchShape(topRadius: top, bottomRadius: bottom))
+                    .mask(softEdgeMask(height: shapeHeight))
+                    .frame(width: shapeWidth, height: shapeHeight)
+                    .transition(.opacity)
+            }
             NotchShape(topRadius: top, bottomRadius: bottom)
                 .fill(Color.black)
-                .frame(width: size.width + top * 2, height: size.height)
-                .shadow(color: .black.opacity(open ? 0.45 : 0), radius: open ? 18 : 0, y: open ? 8 : 0)
+                .frame(width: shapeWidth, height: shapeHeight)
+                .mask(softEdgeMask(height: shapeHeight, enabled: soft))
+                .shadow(color: .black.opacity(open && !soft ? 0.45 : 0), radius: open ? 18 : 0, y: open ? 8 : 0)
+            if display.contrastOutline {
+                NotchOutline(topRadius: top, bottomRadius: bottom)
+                    .stroke(Self.outlineColor, lineWidth: 1)
+                    .frame(width: shapeWidth, height: shapeHeight)
+                    .mask(softEdgeMask(height: shapeHeight, enabled: soft))
+                    .allowsHitTesting(false)
+            }
 
             Group {
                 if open {
@@ -69,7 +156,9 @@ struct NotchView: View {
                         .transition(Self.expandedTransition)
                 } else if let activity = model.activity {
                     ActivityView(activity: activity, notchSize: notch)
-                        .transition(Self.collapsedTransition)
+                        .id(activity.key)
+                        .transition(model.cycleDirection == 0
+                                    ? Self.collapsedTransition : Self.cycleTransition(model.cycleDirection))
                 } else {
                     switch idle {
                     case .nowPlaying:
@@ -83,6 +172,13 @@ struct NotchView: View {
             }
             .frame(width: size.width, height: size.height, alignment: .top)
             .clipped()
+            .overlay(alignment: .bottom) {
+                if !open, model.showsPageDots, let i = model.cycleIndex {
+                    PageDots(count: model.recentActivities.count, index: i)
+                        .frame(height: NotchModel.pageDotsHeight, alignment: .top)
+                        .transition(.opacity)
+                }
+            }
         }
         .scaleEffect(grow, anchor: .top)
         .contentShape(Rectangle())
@@ -100,6 +196,20 @@ struct NotchView: View {
         .onChange(of: model.dropTargeted) { _, targeted in
             if targeted { model.tab = .shelf }
         }
+    }
+}
+
+extension NotchView {
+    /// Opaque down to just above the content's bottom edge, then fades to clear over the soft
+    /// edge strip. Fully opaque when `enabled` is false (so toggling doesn't swap view types).
+    func softEdgeMask(height: CGFloat, enabled: Bool = true) -> LinearGradient {
+        let fadeStart = enabled ? max(0, (height - Self.softEdgeHeight - 8) / max(height, 1)) : 1
+        return LinearGradient(stops: [
+            .init(color: .black, location: 0),
+            .init(color: .black, location: fadeStart),
+            .init(color: .black.opacity(enabled ? 0.55 : 1), location: enabled ? (fadeStart + 1) / 2 : 1),
+            .init(color: .black.opacity(enabled ? 0 : 1), location: 1),
+        ], startPoint: .top, endPoint: .bottom)
     }
 }
 

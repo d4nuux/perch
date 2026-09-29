@@ -24,16 +24,20 @@ final class GestureSettings: ObservableObject {
     @Published var haptics: Bool { didSet { d.set(haptics, forKey: "gesture.haptics") } }
     /// Swipe up on the collapsed notch dismisses the current live activity.
     @Published var swipeToDismiss: Bool { didSet { d.set(swipeToDismiss, forKey: "gesture.swipeToDismiss") } }
+    /// Swipe sideways on the collapsed notch while a live activity shows to cycle through the
+    /// recent ones (takes precedence over swipe-for-tracks; see GestureService).
+    @Published var swipeToCycle: Bool { didSet { d.set(swipeToCycle, forKey: "gesture.swipeToCycle") } }
     @Published var sensitivity: Sensitivity { didSet { d.set(sensitivity.rawValue, forKey: "gesture.threshold") } }
 
     private init() {
         d.register(defaults: [
             "gesture.reverse": false, "gesture.haptics": true,
-            "gesture.swipeToDismiss": true, "gesture.threshold": Sensitivity.medium.rawValue,
+            "gesture.swipeToDismiss": true, "gesture.swipeToCycle": true, "gesture.threshold": Sensitivity.medium.rawValue,
         ])
         reverseDirection = d.bool(forKey: "gesture.reverse")
         haptics = d.bool(forKey: "gesture.haptics")
         swipeToDismiss = d.bool(forKey: "gesture.swipeToDismiss")
+        swipeToCycle = d.bool(forKey: "gesture.swipeToCycle")
         sensitivity = Sensitivity(rawValue: d.integer(forKey: "gesture.threshold")) ?? .medium
     }
 }

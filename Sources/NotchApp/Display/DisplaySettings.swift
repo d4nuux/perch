@@ -48,6 +48,14 @@ final class DisplaySettings: ObservableObject {
     @Published var hoverGrow: Bool { didSet { d.set(hoverGrow, forKey: "display.hoverGrow") } }
     @Published var hideFromCapture: Bool { didSet { d.set(hideFromCapture, forKey: "display.hideFromCapture") } }
     @Published var hideInFullscreen: Bool { didSet { d.set(hideInFullscreen, forKey: "display.hideInFullscreen") } }
+    /// Hairline white outline around the notch shape (dark wallpapers, simulated notches).
+    @Published var contrastOutline: Bool { didSet { d.set(contrastOutline, forKey: "display.contrastOutline") } }
+    /// Expanded notch's bottom edge fades out through a blur instead of ending hard.
+    @Published var progressiveBlur: Bool { didSet { d.set(progressiveBlur, forKey: "display.progressiveBlur") } }
+    /// Fade the notch out while Mission Control / App Exposé / Show Desktop is active.
+    @Published var hideInMissionControl: Bool { didSet { d.set(hideInMissionControl, forKey: "display.hideInMissionControl") } }
+    /// Fade the notch out while a game is the frontmost app.
+    @Published var hideWhileGaming: Bool { didSet { d.set(hideWhileGaming, forKey: "display.hideWhileGaming") } }
     @Published var idleContent: IdleContent { didSet { d.set(idleContent.rawValue, forKey: "display.idleContent") } }
 
     private init() {
@@ -63,6 +71,10 @@ final class DisplaySettings: ObservableObject {
             "display.hideFromCapture": false,
             "display.hideInFullscreen": true,
             "display.idleContent": IdleContent.nowPlaying.rawValue,
+            "display.contrastOutline": false,
+            "display.progressiveBlur": false,
+            "display.hideInMissionControl": true,
+            "display.hideWhileGaming": true,
         ])
         showOn = ShowOn(rawValue: d.string(forKey: "display.showOn") ?? "") ?? .builtIn
         specificDisplayName = d.string(forKey: "display.specificName") ?? ""
@@ -74,6 +86,10 @@ final class DisplaySettings: ObservableObject {
         hoverGrow = d.bool(forKey: "display.hoverGrow")
         hideFromCapture = d.bool(forKey: "display.hideFromCapture")
         hideInFullscreen = d.bool(forKey: "display.hideInFullscreen")
+        contrastOutline = d.bool(forKey: "display.contrastOutline")
+        progressiveBlur = d.bool(forKey: "display.progressiveBlur")
+        hideInMissionControl = d.bool(forKey: "display.hideInMissionControl")
+        hideWhileGaming = d.bool(forKey: "display.hideWhileGaming")
         idleContent = IdleContent(rawValue: d.string(forKey: "display.idleContent") ?? "") ?? .nowPlaying
     }
 }
