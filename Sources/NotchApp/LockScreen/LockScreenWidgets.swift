@@ -121,6 +121,7 @@ struct LockSlider: View {
 
 struct LockScreenWidgetsView: View {
     @ObservedObject var model: LockScreenWidgetModel
+    @ObservedObject private var prefs = LockScreenSettings.shared
     static let width: CGFloat = 360
 
     private let secondary = Color.white.opacity(0.55)
@@ -212,7 +213,7 @@ struct LockScreenWidgetsView: View {
                 }
             }
             if model.duration > 0 { scrubber }
-            if let v = model.volume { volumeRow(v) }
+            if prefs.showVolume, let v = model.volume { volumeRow(v) }
         }
         .padding(12)
         .modifier(LockCard(radius: 18, style: model.style))

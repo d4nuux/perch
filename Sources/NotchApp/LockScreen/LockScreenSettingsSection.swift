@@ -26,6 +26,9 @@ struct LockScreenSettingsSection: View {
         }
 
         Section("Behavior") {
+            SettingToggle("Volume slider under Now Playing",
+                          detail: "The volume keys work on the lock screen either way.",
+                          isOn: $s.showVolume)
             SettingToggle("Keep display awake while locked",
                           detail: "Prevents idle display sleep only while the screen is locked. Uses more power.",
                           isOn: $s.keepAwake)

@@ -57,6 +57,8 @@ final class LockScreenSettings: ObservableObject {
     @Published var keepAwake: Bool { didSet { d.set(keepAwake, forKey: K.keepAwake) } }
     /// Also show the widgets while the screensaver runs.
     @Published var showOnScreensaver: Bool { didSet { d.set(showOnScreensaver, forKey: K.screensaver) } }
+    /// Volume slider under the Now Playing card (off by default: the hardware keys already work).
+    @Published var showVolume: Bool { didSet { d.set(showVolume, forKey: K.showVolume) } }
 
     static let offsetRange: ClosedRange<Double> = -200...200
 
@@ -67,6 +69,7 @@ final class LockScreenSettings: ObservableObject {
         static let offset = "lockScreen.verticalOffset"
         static let keepAwake = "lockScreen.keepAwake"
         static let screensaver = "lockScreen.showOnScreensaver"
+        static let showVolume = "lockScreen.showVolume"
     }
 
     private init() {
@@ -78,6 +81,7 @@ final class LockScreenSettings: ObservableObject {
             K.offset: 0.0,
             K.keepAwake: false,
             K.screensaver: false,
+            K.showVolume: false,
         ])
         var o = (d.stringArray(forKey: K.order) ?? []).compactMap(LockWidget.init(rawValue:))
         o = o.reduce(into: []) { if !$0.contains($1) { $0.append($1) } }
@@ -88,6 +92,7 @@ final class LockScreenSettings: ObservableObject {
         verticalOffset = min(max(d.double(forKey: K.offset), Self.offsetRange.lowerBound), Self.offsetRange.upperBound)
         keepAwake = d.bool(forKey: K.keepAwake)
         showOnScreensaver = d.bool(forKey: K.screensaver)
+        showVolume = d.bool(forKey: K.showVolume)
     }
 
     func isEnabled(_ w: LockWidget) -> Bool { enabled.contains(w) }
