@@ -75,6 +75,10 @@ struct MediaSettingsSection: View {
         }
 
         Section("Track info") {
+            SettingToggle("Ignore browser videos without track info",
+                          detail: "Skips things like Instagram reels and autoplaying clips that report no artist. "
+                              + "Music and YouTube videos still show.",
+                          isOn: $s.hideUntitledWebMedia)
             SettingToggle("Clean up track titles", detail: "Hides tags like “(Remastered 2011)” or “[Official Video]”.",
                           isOn: $s.cleanTitles)
             SettingToggle("Show explicit badge",

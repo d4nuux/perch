@@ -92,6 +92,10 @@ enum BrowserTabs {
     static let safari: Set<String> = ["com.apple.Safari", "com.apple.SafariTechnologyPreview"]
 
     static func supports(_ bundleID: String) -> Bool { chromium.contains(bundleID) || safari.contains(bundleID) }
+    /// Any web browser we know of (tab focusing aside).
+    static func isBrowser(_ bundleID: String) -> Bool {
+        supports(bundleID) || bundleID.hasPrefix("org.mozilla.") || bundleID == "app.zen-browser.zen"
+    }
 
     /// Returns true if a matching tab was found and focused.
     static func focus(bundleID: String, containing title: String) -> Bool {

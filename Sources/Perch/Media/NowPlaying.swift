@@ -100,7 +100,9 @@ final class NowPlaying: ObservableObject {
         // Settings publish in willSet; hop to the next main-loop turn so reads see the new value.
         settings.$source.dropFirst().receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.applySource() }.store(in: &cancellables)
-        settings.$ignoredSources.dropFirst().receive(on: DispatchQueue.main)
+        settings.$ignoredSources.map { _ in () }
+            .merge(with: settings.$hideUntitledWebMedia.map { _ in () })
+            .dropFirst(2).receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self, self.useRemote else { return }
                 self.applyRemote(self.remoteState)
@@ -214,7 +216,9 @@ final class NowPlaying: ObservableObject {
         if let art = s.artwork { takeRemoteArtwork(art, track: s.title + "|" + s.artist) }
         guard useRemote else { return }
         settings.noteSource(s.bundleID)
-        if !s.bundleID.isEmpty, settings.ignoredSources.contains(s.bundleID) {
+        let untitledWeb = settings.hideUntitledWebMedia && s.artist.trimmingCharacters(in: .whitespaces).isEmpty
+            && BrowserTabs.isBrowser(s.bundleID)
+        if untitledWeb || (!s.bundleID.isEmpty && settings.ignoredSources.contains(s.bundleID)) {
             clear()
             if artwork != nil { artwork = nil }
             return

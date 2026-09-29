@@ -49,6 +49,9 @@ final class MediaSettings: ObservableObject {
     /// Sources seen playing, offered in the ignore list.
     @Published private(set) var knownSources: [String] { didSet { d.set(knownSources, forKey: "media.known") } }
     @Published var cleanTitles: Bool { didSet { d.set(cleanTitles, forKey: "media.cleanTitles") } }
+    /// Ignore browser media that has no artist (Instagram reels, muted autoplay, ads): real music and
+    /// YouTube videos always report an artist or channel.
+    @Published var hideUntitledWebMedia: Bool { didSet { d.set(hideUntitledWebMedia, forKey: "media.hideUntitledWebMedia") } }
     @Published var artworkColor: Bool { didSet { d.set(artworkColor, forKey: "media.artworkColor") } }
     @Published var hideWhileSourceFrontmost: Bool { didSet { d.set(hideWhileSourceFrontmost, forKey: "media.hideFrontmost") } }
     @Published var extraLeft: ExtraControl { didSet { d.set(extraLeft.rawValue, forKey: "media.extraLeft") } }
@@ -66,7 +69,7 @@ final class MediaSettings: ObservableObject {
 
     private init() {
         d.register(defaults: [
-            "media.source": Source.automatic.rawValue, "media.cleanTitles": true, "media.artworkColor": true,
+            "media.source": Source.automatic.rawValue, "media.cleanTitles": true, "media.hideUntitledWebMedia": true, "media.artworkColor": true,
             "media.hideFrontmost": false, "media.extraLeft": ExtraControl.none.rawValue,
             "media.extraRight": ExtraControl.none.rawValue, "media.showRemaining": false,
             "media.artworkStyle": ArtworkStyle.full.rawValue, "media.artworkFlip": true, "media.explicitBadge": true,
@@ -75,6 +78,7 @@ final class MediaSettings: ObservableObject {
         ignoredSources = Set(d.stringArray(forKey: "media.ignored") ?? [])
         knownSources = d.stringArray(forKey: "media.known") ?? []
         cleanTitles = d.bool(forKey: "media.cleanTitles")
+        hideUntitledWebMedia = d.bool(forKey: "media.hideUntitledWebMedia")
         artworkColor = d.bool(forKey: "media.artworkColor")
         hideWhileSourceFrontmost = d.bool(forKey: "media.hideFrontmost")
         extraLeft = ExtraControl(rawValue: d.string(forKey: "media.extraLeft") ?? "") ?? .none
