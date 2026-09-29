@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import CoreBluetooth
+import SwiftUI
 
 /// Charging, battery, Low Power Mode, Focus, Bluetooth device, unlock and track-change live
 /// activities. (Owned by the Activities agent.)
@@ -156,8 +157,11 @@ final class ActivityService {
             if let b = device.battery, shouldWarn(device, level: b) {
                 presenter.present(ActivityViews.deviceLowBattery(device, level: b), rank: .deviceBattery, duration: 3.5)
             } else {
-                // Only refresh in place if the connect peek is still on screen.
-                presenter.update(ActivityViews.bluetooth(device, connected: true), duration: 2)
+                // Only refresh in place if the connect peek is still on screen. Animated, since the
+                // AirPods L / R / case row can appear here and grow the notch.
+                withAnimation(NotchModel.openAnimation) {
+                    presenter.update(ActivityViews.bluetooth(device, connected: true), duration: 2)
+                }
             }
         case .disconnected(let device):
             deviceLowWarned.remove(device.address)

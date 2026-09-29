@@ -7,6 +7,9 @@ enum ActivityViews {
     static let charging = Color(red: 0.30, green: 0.85, blue: 0.39)
     static let low = Color(red: 1.0, green: 0.27, blue: 0.23)
 
+    /// ActivitySettings "Animated device visuals"; off = the static symbol views.
+    static var animated: Bool { ActivitySettings.shared.animatedVisuals }
+
     static func batterySymbol(_ level: Int) -> String {
         switch level {
         case 88...: "battery.100"
@@ -40,7 +43,11 @@ enum ActivityViews {
     static func charging(level: Int, minutesToFull: Int?, hidePercent: Bool) -> LiveActivity {
         LiveActivity(key: "activity.power",
                      extraWidth: powerWidth(percent: !hidePercent, time: minutesToFull != nil)) {
-            Symbol(name: "battery.100.bolt", color: charging)
+            if animated {
+                BatteryVisual(level: level, tint: charging, bolt: true).id("power.charging")
+            } else {
+                Symbol(name: "battery.100.bolt", color: charging)
+            }
         } trailing: {
             PowerValue(level: hidePercent ? nil : level, minutes: minutesToFull, color: charging)
         }
@@ -49,7 +56,11 @@ enum ActivityViews {
     static func unplugged(level: Int, minutesToEmpty: Int?, hidePercent: Bool) -> LiveActivity {
         LiveActivity(key: "activity.power",
                      extraWidth: powerWidth(percent: !hidePercent, time: minutesToEmpty != nil)) {
-            Symbol(name: batterySymbol(level), color: .white)
+            if animated {
+                BatteryVisual(level: level, tint: .white).id("power.unplugged")
+            } else {
+                Symbol(name: batterySymbol(level), color: .white)
+            }
         } trailing: {
             PowerValue(level: hidePercent ? nil : level, minutes: minutesToEmpty, color: .white)
         }
@@ -59,7 +70,11 @@ enum ActivityViews {
     static func fullyCharged(level: Int, hidePercent: Bool) -> LiveActivity {
         LiveActivity(key: "activity.power", extraWidth: hidePercent ? 180 : 220) {
             HStack(spacing: 6) {
-                Symbol(name: "battery.100.bolt", color: charging)
+                if animated {
+                    BatteryVisual(level: level, tint: charging, bolt: true).id("power.full")
+                } else {
+                    Symbol(name: "battery.100.bolt", color: charging)
+                }
                 Text(level >= 100 ? "Fully Charged" : "Charged").font(textFont).foregroundStyle(charging)
                     .lineLimit(1).fixedSize()
             }
@@ -72,7 +87,11 @@ enum ActivityViews {
         LiveActivity(key: "activity.lowbattery",
                      extraWidth: 170 + powerWidth(percent: !hidePercent, time: minutesToEmpty != nil) - 30) {
             HStack(spacing: 6) {
-                Symbol(name: batterySymbol(level), color: low)
+                if animated {
+                    BatteryVisual(level: level, tint: low, pulse: true).id("power.low.\(critical)")
+                } else {
+                    Symbol(name: batterySymbol(level), color: low)
+                }
                 Text(critical ? "Battery Critical" : "Low Battery").font(textFont).foregroundStyle(low)
                     .lineLimit(1).fixedSize()
             }
@@ -121,24 +140,32 @@ enum ActivityViews {
     // MARK: Bluetooth
 
     static func bluetooth(_ d: BluetoothMonitor.Device, connected: Bool) -> LiveActivity {
-        LiveActivity(key: "activity.bluetooth", extraWidth: 230) {
-            Symbol(name: d.kind.symbol, color: .white)
-        } trailing: {
-            HStack(spacing: 5) {
-                Text(d.name).font(textFont).lineLimit(1).truncationMode(.tail)
-                if connected, let b = d.battery {
-                    Text("\(b)%").font(.system(size: 11, weight: .medium)).monospacedDigit()
-                        .foregroundStyle(b <= 20 ? low : .white.opacity(0.6))
-                        .fixedSize()
-                }
+        guard animated else {
+            return LiveActivity(key: "activity.bluetooth", extraWidth: 230) {
+                Symbol(name: d.kind.symbol, color: .white)
+            } trailing: {
+                DeviceLabel(name: d.name, battery: connected ? d.battery : nil)
             }
+            .dimmed(!connected)
         }
-        .dimmed(!connected)
+        // AirPods with per-bud readings: L / R / case row below, name alone on the right.
+        let buds = connected ? d.buds.flatMap { $0.hasBuds ? $0 : nil } : nil
+        let activity = LiveActivity(key: "activity.bluetooth", extraWidth: 230) {
+            DeviceVisual(kind: d.kind, entrance: connected).id("bt.\(d.address).\(connected)")
+        } trailing: {
+            DeviceLabel(name: d.name, battery: connected && buds == nil ? d.battery : nil)
+        }
+        guard let buds else { return activity.dimmed(!connected) }
+        return activity.withBelow(height: 24) { BudsBatteryRow(kind: d.kind, buds: buds) }
     }
 
     static func deviceLowBattery(_ d: BluetoothMonitor.Device, level: Int) -> LiveActivity {
         LiveActivity(key: "activity.devicebattery", extraWidth: 250) {
-            Symbol(name: d.kind.symbol, color: low)
+            if animated {
+                DeviceVisual(kind: d.kind, tint: low, pulse: true).id("btlow.\(d.address)")
+            } else {
+                Symbol(name: d.kind.symbol, color: low)
+            }
         } trailing: {
             HStack(spacing: 5) {
                 Text(d.name).font(textFont).lineLimit(1).truncationMode(.tail)
@@ -190,6 +217,23 @@ private struct Symbol: View {
             .font(.system(size: ActivityViews.symbolSize, weight: .medium))
             .foregroundStyle(color)
             .fixedSize()
+    }
+}
+
+/// Device name, plus battery % when given.
+private struct DeviceLabel: View {
+    let name: String
+    let battery: Int?
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(name).font(ActivityViews.textFont).lineLimit(1).truncationMode(.tail)
+            if let b = battery {
+                Text("\(b)%").font(.system(size: 11, weight: .medium)).monospacedDigit()
+                    .foregroundStyle(b <= 20 ? ActivityViews.low : .white.opacity(0.6))
+                    .fixedSize()
+            }
+        }
     }
 }
 

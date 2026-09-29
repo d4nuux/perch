@@ -36,6 +36,8 @@ struct ActivitiesSettingsSection: View {
             Toggle("Track changes", isOn: $app.trackChangeActivity)
             Toggle("Unlock", isOn: $opts.unlock)
                 .help("A brief lock icon when you unlock the Mac.")
+            Toggle("Animated device visuals", isOn: $opts.animatedVisuals)
+                .help("Devices swing in, the battery fills with a bolt pulse, AirPods show left / right / case.")
         }
     }
 }

@@ -27,6 +27,8 @@ final class ActivitySettings: ObservableObject {
     @Published var deviceLowBattery: Bool { didSet { d.set(deviceLowBattery, forKey: "activities.deviceLowBattery") } }
     @Published var focus: Bool { didSet { d.set(focus, forKey: "activities.focus") } }
     @Published var unlock: Bool { didSet { d.set(unlock, forKey: "activities.unlock") } }
+    /// 3D swing-in device symbols, drawn battery with fill / bolt / low pulse, AirPods L/R/case.
+    @Published var animatedVisuals: Bool { didSet { d.set(animatedVisuals, forKey: "activities.animatedVisuals") } }
 
     /// Descending, e.g. [20, 10]; just [t] when the user threshold is at or below the critical one.
     var lowThresholds: [Int] {
@@ -39,6 +41,7 @@ final class ActivitySettings: ObservableObject {
             "activities.showTimeRemaining": true, "activities.hidePercentage": false,
             "activities.fullyCharged": true, "activities.lowPowerMode": true,
             "activities.deviceLowBattery": true, "activities.focus": true, "activities.unlock": false,
+            "activities.animatedVisuals": true,
         ])
         lowBatteryThreshold = min(max(d.integer(forKey: "activities.lowBatteryThreshold"), 5), 50)
         lowBatterySound = d.bool(forKey: "activities.lowBatterySound")
@@ -49,5 +52,6 @@ final class ActivitySettings: ObservableObject {
         deviceLowBattery = d.bool(forKey: "activities.deviceLowBattery")
         focus = d.bool(forKey: "activities.focus")
         unlock = d.bool(forKey: "activities.unlock")
+        animatedVisuals = d.bool(forKey: "activities.animatedVisuals")
     }
 }
