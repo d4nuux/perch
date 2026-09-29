@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import CoreAudio
 
 /// Replaces the system volume / brightness / keyboard-backlight HUDs. (Owned by the HUD agent.)
 ///
@@ -143,13 +144,23 @@ final class HUDService {
         return audio.canSetMute(dev)
     }
 
+    /// Last volume we set and on which device. Devices with a coarse hardware volume (many USB
+    /// headsets) round a written value back to their nearest step, so stepping from the read-back
+    /// value would never move; step from our own target while the device still reports near it.
+    private var lastVolumeTarget: (device: AudioObjectID, value: Float, readBack: Float)?
+
     private func changeVolume(by delta: Float) -> Bool {
-        guard let dev = audio.defaultDevice, let current = audio.volume(dev) else { return false }
+        guard let dev = audio.defaultDevice, let read = audio.volume(dev) else { return false }
         let muted = audio.isMuted(dev)
+        var current = read
+        // Unchanged read-back means nobody else touched the volume since our last step.
+        if let last = lastVolumeTarget, last.device == dev,
+           abs(last.readBack - read) < 0.001 || abs(last.value - read) < 0.02 { current = last.value }
         let target = Self.stepped(current, by: delta)
         // Volume up while muted unmutes, as macOS does.
         if delta > 0, muted { audio.setMuted(dev, false) }
-        if target != current, !audio.setVolume(dev, target) { return false }
+        if target != read, !audio.setVolume(dev, target) { return false }
+        lastVolumeTarget = (dev, target, audio.volume(dev) ?? target)
         let nowMuted = delta > 0 ? false : muted
         show(.volume, level: Double(target), muted: nowMuted)
         return true
@@ -216,6 +227,9 @@ final class HUDService {
         let muted = audio.isMuted(dev)
         // Our own key presses echo back here; skip if nothing new.
         if abs(state.level - Double(v)) < 0.0005, state.muted == muted { return }
+        // Coarse devices echo their rounded value for our own write; keep showing our target.
+        if let last = lastVolumeTarget, last.device == dev, abs(last.readBack - v) < 0.001,
+           state.muted == muted { return }
         present(.volume, level: Double(v), muted: muted)
     }
 
