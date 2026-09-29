@@ -52,6 +52,11 @@ final class GestureService {
         if !event.momentumPhase.isEmpty { return triggered ? nil : event }
 
         let phase = event.phase
+        // Fingers on the trackpad over the closed notch: the user means to swipe, so cancel the
+        // pending hover-open (until the pointer leaves). Otherwise hover would open it mid-swipe.
+        if let display = event.window?.screen?.displayID, !context.model.isOpen(on: display) {
+            context.model.suppressHoverOpen = true
+        }
         if phase.contains(.mayBegin) { return event }
         if phase.contains(.began) {
             reset()
