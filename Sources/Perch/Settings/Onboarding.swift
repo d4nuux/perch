@@ -18,7 +18,7 @@ enum OnboardingWindow {
             let host = NSHostingController(rootView: OnboardingView())
             host.sizingOptions = []
             let w = NSWindow(contentViewController: host)
-            w.title = "Welcome to NotchApp"
+            w.title = "Welcome to Perch"
             w.styleMask = [.titled, .closable, .fullSizeContentView]
             w.titlebarAppearsTransparent = true
             w.titleVisibility = .hidden
@@ -93,7 +93,7 @@ struct OnboardingView: View {
     private var welcome: some View {
         VStack(spacing: 14) {
             NotchGlyph().frame(width: 180, height: 44)
-            Text("Welcome to NotchApp").font(.system(size: 24, weight: .bold))
+            Text("Welcome to Perch").font(.system(size: 24, weight: .bold))
             Text("Your notch becomes a live surface for music, calendar, HUDs and quick files.\nHover the notch to open it, or swipe down on it with two fingers.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
@@ -123,7 +123,7 @@ struct OnboardingView: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 44)).foregroundStyle(.green)
             Text("You're all set").font(.system(size: 24, weight: .bold))
-            Text("Settings live behind the gear in the open notch, or at notchapp://settings.")
+            Text("Settings live behind the gear in the open notch, or at perch://settings.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: 380)

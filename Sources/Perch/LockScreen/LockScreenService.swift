@@ -114,7 +114,7 @@ final class LockScreenService {
         return (d["CGSSessionScreenIsLocked"] as? Bool) ?? ((d["CGSSessionScreenIsLocked"] as? Int) ?? 0 != 0)
     }
 
-    private static let log = Logger(subsystem: "NotchApp", category: "LockScreen")
+    private static let log = Logger(subsystem: "Perch", category: "LockScreen")
 
     private func setLocked(_ locked: Bool) {
         Self.log.info("lock notification locked=\(locked)")

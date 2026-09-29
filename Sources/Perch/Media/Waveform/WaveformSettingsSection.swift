@@ -49,7 +49,7 @@ struct WaveformSettingsSection: View {
         case .idle: "Captures only while music is playing and the visualizer is visible."
         case .starting: "Starting…"
         case .live: "Live audio active."
-        case .silent: "No audio received — allow NotchApp under System Audio Recording, or nothing is audible."
+        case .silent: "No audio received — allow Perch under System Audio Recording, or nothing is audible."
         case .unavailable(let why): "Audio capture unavailable (\(why)). Using animation."
         }
     }

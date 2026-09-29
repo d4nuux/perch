@@ -6,7 +6,7 @@ import Foundation
 /// - `_NSDoNotDisturbEnabledNotification` / `…DisabledNotification` distributed notifications
 ///   (no entitlement or TCC needed; carry no mode info).
 /// - `~/Library/DoNotDisturb/DB/{Assertions,ModeConfigurations}.json`, watched with a vnode
-///   DispatchSource. These are TCC-protected: readable only when NotchApp has Full Disk Access.
+///   DispatchSource. These are TCC-protected: readable only when Perch has Full Disk Access.
 ///   Without it we report a generic "Focus On / Off".
 /// (DNDStateService / FCActivityManager and INFocusStatusCenter need entitlements we can't sign with.)
 final class FocusMonitor {

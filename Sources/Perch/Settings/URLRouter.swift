@@ -1,12 +1,12 @@
 import AppKit
 
-/// Handles `notchapp://` URLs:
+/// Handles `perch://` URLs (`notchapp://` still accepted):
 /// `open`, `open/home`, `open/calendar`, `open/shelf`, `close`, `settings`, `settings/<pane>`.
 enum URLRouter {
     @discardableResult
     static func handle(_ url: URL, model: NotchModel?) -> Bool {
-        guard url.scheme?.lowercased() == "notchapp" else { return false }
-        // notchapp://open/shelf → host "open", path "/shelf".
+        guard let scheme = url.scheme?.lowercased(), scheme == "perch" || scheme == "notchapp" else { return false }
+        // perch://open/shelf → host "open", path "/shelf".
         let parts = ([url.host ?? ""] + url.pathComponents.filter { $0 != "/" })
             .map { $0.lowercased() }.filter { !$0.isEmpty }
         guard let command = parts.first else { return false }

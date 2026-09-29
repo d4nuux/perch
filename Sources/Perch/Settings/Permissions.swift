@@ -5,7 +5,7 @@ import CoreLocation
 import EventKit
 import SwiftUI
 
-/// Privacy permissions NotchApp uses.
+/// Privacy permissions Perch uses.
 enum Permission: String, CaseIterable, Identifiable {
     case accessibility, calendar, automation, bluetooth, location, audioCapture
 
@@ -101,7 +101,7 @@ enum PermissionState: Equatable {
 
 extension Notification.Name {
     /// Posted (main thread) when PermissionCenter sees any permission state change.
-    static let notchPermissionsChanged = Notification.Name("NotchApp.permissionsChanged")
+    static let notchPermissionsChanged = Notification.Name("Perch.permissionsChanged")
 }
 
 /// Live permission status. Event-driven: refreshes when the app becomes active, when a settings
@@ -224,7 +224,7 @@ final class PermissionCenter: NSObject, ObservableObject, CBCentralManagerDelega
     func confirmAndResetAll() {
         let confirm = NSAlert()
         confirm.messageText = "Reset all permissions?"
-        confirm.informativeText = "NotchApp will lose access to Accessibility, Calendars, Bluetooth, Location, "
+        confirm.informativeText = "Perch will lose access to Accessibility, Calendars, Bluetooth, Location, "
             + "Automation and audio recording. macOS asks again the next time each one is used."
         confirm.alertStyle = .warning
         confirm.addButton(withTitle: "Reset")
@@ -237,7 +237,7 @@ final class PermissionCenter: NSObject, ObservableObject, CBCentralManagerDelega
         let done = NSAlert()
         if ok {
             done.messageText = "Permissions reset"
-            done.informativeText = "Relaunch NotchApp so the change takes full effect."
+            done.informativeText = "Relaunch Perch so the change takes full effect."
             done.addButton(withTitle: "Relaunch")
             done.addButton(withTitle: "Later")
             if done.runModal() == .alertFirstButtonReturn { Self.relaunch() }
@@ -339,7 +339,7 @@ struct PermissionsPane: View {
                 } header: {
                     SectionHeader("Asked when first used")
                 } footer: {
-                    SectionFooter("macOS can't report these ahead of time; it asks the first time NotchApp uses them.")
+                    SectionFooter("macOS can't report these ahead of time; it asks the first time Perch uses them.")
                 }
             }
             Section("Troubleshooting") {
@@ -353,7 +353,7 @@ struct PermissionsPane: View {
 
     private var summary: String {
         let granted = checkable.filter { center.state($0) == .granted }.count
-        return granted == checkable.count ? "Everything NotchApp can use is allowed."
+        return granted == checkable.count ? "Everything Perch can use is allowed."
                                           : "\(granted) of \(checkable.count) allowed."
     }
 }

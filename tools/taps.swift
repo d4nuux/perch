@@ -1,4 +1,4 @@
-// Dev tool: lists event taps owned by a process. Usage: swift tools/taps.swift $(pgrep -x NotchApp)
+// Dev tool: lists event taps owned by a process. Usage: swift tools/taps.swift $(pgrep -x Perch)
 import CoreGraphics
 let pid = pid_t(CommandLine.arguments[1])!
 var n: UInt32 = 0

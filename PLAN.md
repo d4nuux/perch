@@ -1,4 +1,4 @@
-# NotchApp plan
+# Perch plan (formerly NotchApp)
 
 Our own notch app, written from scratch. Feature parity target: fluid transitions, live activities,
 notifications, swipe gestures, custom HUDs, lock screen widgets, native performance.

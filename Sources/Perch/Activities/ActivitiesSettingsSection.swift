@@ -45,7 +45,7 @@ struct ActivitiesSettingsSection: View {
         Section {
             SettingToggle("Focus", detail: "When a Focus mode turns on or off.", isOn: $opts.focus)
             if opts.focus {
-                SettingNote(text: "Grant NotchApp Full Disk Access to show which Focus mode turned on.")
+                SettingNote(text: "Grant Perch Full Disk Access to show which Focus mode turned on.")
             }
             SettingToggle("Track changes", detail: "The new song's artwork and title when the track changes.",
                           isOn: $app.trackChangeActivity)

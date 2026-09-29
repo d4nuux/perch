@@ -228,7 +228,7 @@ final class LockKeepAwake {
                 var newID = IOPMAssertionID(0)
                 let r = IOPMAssertionCreateWithName(kIOPMAssertPreventUserIdleDisplaySleep as CFString,
                                                     IOPMAssertionLevel(kIOPMAssertionLevelOn),
-                                                    "NotchApp lock screen widgets" as CFString, &newID)
+                                                    "Perch lock screen widgets" as CFString, &newID)
                 if r == kIOReturnSuccess { id = newID }
             } else if !newValue, id != 0 {
                 IOPMAssertionRelease(id)

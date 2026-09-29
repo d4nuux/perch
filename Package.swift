@@ -2,9 +2,9 @@
 import PackageDescription
 
 let package = Package(
-    name: "NotchApp",
+    name: "Perch",
     platforms: [.macOS(.v14)],
     targets: [
-        .executableTarget(name: "NotchApp", path: "Sources/NotchApp")
+        .executableTarget(name: "Perch", path: "Sources/Perch")
     ]
 )

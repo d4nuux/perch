@@ -20,7 +20,7 @@ final class MenuBarItem: NSObject {
         if on, item == nil {
             let i = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
             let image = NSImage(systemSymbolName: "rectangle.topthird.inset.filled",
-                                accessibilityDescription: "NotchApp")
+                                accessibilityDescription: "Perch")
             image?.isTemplate = true
             i.button?.image = image
             i.menu = makeMenu()
@@ -33,10 +33,10 @@ final class MenuBarItem: NSObject {
 
     private func makeMenu() -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(entry("Open NotchApp", #selector(openAction), ""))
+        menu.addItem(entry("Open Perch", #selector(openAction), ""))
         menu.addItem(entry("Settings…", #selector(settingsAction), ","))
         menu.addItem(.separator())
-        menu.addItem(entry("Quit NotchApp", #selector(quitAction), "q"))
+        menu.addItem(entry("Quit Perch", #selector(quitAction), "q"))
         return menu
     }
 

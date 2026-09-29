@@ -29,7 +29,7 @@ final class SystemAudioTap {
         desc.uuid = UUID()
         desc.isPrivate = true
         desc.muteBehavior = .unmuted
-        desc.name = "NotchApp Visualizer"
+        desc.name = "Perch Visualizer"
         try check("AudioHardwareCreateProcessTap", AudioHardwareCreateProcessTap(desc, &tapID))
 
         var fmt = AudioStreamBasicDescription()
@@ -43,7 +43,7 @@ final class SystemAudioTap {
         // Tap-only private aggregate: doesn't add the output device as a sub-device, so the user's
         // real output path (calls, Bluetooth) is untouched.
         let dict: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "NotchApp Visualizer",
+            kAudioAggregateDeviceNameKey: "Perch Visualizer",
             kAudioAggregateDeviceUIDKey: "local.notchapp.visualizer.\(UUID().uuidString)",
             kAudioAggregateDeviceIsPrivateKey: true,
             kAudioAggregateDeviceIsStackedKey: false,

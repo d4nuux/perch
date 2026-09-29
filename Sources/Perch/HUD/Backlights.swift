@@ -70,7 +70,7 @@ final class DisplayBrightness {
     }
 
     /// Calls `handler` on the main queue when the built-in display's brightness is changed by the
-    /// user outside NotchApp (Control Center slider, System Settings). Push-only: DisplayServices'
+    /// user outside Perch (Control Center slider, System Settings). Push-only: DisplayServices'
     /// "DisplayServicesUserBrightness" notification, which CoreBrightness posts for user-level
     /// brightness sets. If the symbol is missing this does nothing (no polling fallback).
     /// Call once; the registration lives for the process.

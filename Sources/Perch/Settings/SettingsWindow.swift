@@ -12,14 +12,14 @@ enum SettingsWindow {
             let host = NSHostingController(rootView: SettingsRoot())
             host.sizingOptions = []
             let w = NSWindow(contentViewController: host)
-            w.title = "NotchApp Settings"
+            w.title = "Perch Settings"
             w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
             w.toolbarStyle = .unified
             w.setContentSize(NSSize(width: 780, height: 600))
             w.contentMinSize = NSSize(width: 700, height: 460)
             w.isReleasedWhenClosed = false
             w.center()
-            w.setFrameAutosaveName("NotchAppSettings")
+            w.setFrameAutosaveName("PerchSettings")
             window = w
         }
         LaunchAtLogin.shared.refresh(syncToggle: true)
@@ -78,7 +78,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .general: "How the notch opens, and how NotchApp starts."
+        case .general: "How the notch opens, and how Perch starts."
         case .display: "Where the notch appears, its size, and when it gets out of the way."
         case .media: "The Now Playing player: source, controls and artwork."
         case .visualizer: "The animated bars next to the notch while music plays."
@@ -87,7 +87,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .calendar: "Upcoming events, meeting alerts and local weather."
         case .lockScreen: "Widgets shown on the lock screen, under the clock."
         case .gestures: "Trackpad swipes on the notch."
-        case .permissions: "What NotchApp can access. Nothing is requested until you allow it."
+        case .permissions: "What Perch can access. Nothing is requested until you allow it."
         case .about: "Version, URL scheme and onboarding."
         }
     }
@@ -315,7 +315,7 @@ struct GeneralPane: View {
     @ViewBuilder private var launchAtLoginRow: some View {
         SettingToggle("Launch at login", detail: login.statusText, isOn: $settings.launchAtLogin)
         if login.status == .requiresApproval {
-            SettingRow("Needs approval", detail: "Allow NotchApp in System Settings › General › Login Items.") {
+            SettingRow("Needs approval", detail: "Allow Perch in System Settings › General › Login Items.") {
                 Button("Open Login Items…") { login.openLoginItemsSettings() }
             }
         }
@@ -388,7 +388,7 @@ struct AboutPane: View {
                 Section {
                     VStack(spacing: 8) {
                         AppIconView(size: 72)
-                        Text("NotchApp").font(.system(size: 20, weight: .semibold))
+                        Text("Perch").font(.system(size: 20, weight: .semibold))
                         Text(Self.build == Self.shortVersion ? "Version \(Self.shortVersion)"
                                                             : "Version \(Self.shortVersion) · Build \(Self.build)")
                             .font(.system(size: 12)).foregroundStyle(.secondary)
@@ -410,7 +410,7 @@ struct AboutPane: View {
                     SettingRow("Onboarding", detail: "The welcome tour and permission checklist.") {
                         Button("Show Again") { OnboardingWindow.show() }
                     }
-                    SettingRow("Quit NotchApp", detail: "Removes the notch until you open the app again.") {
+                    SettingRow("Quit Perch", detail: "Removes the notch until you open the app again.") {
                         Button("Quit") { NSApp.terminate(nil) }
                     }
                 }
@@ -423,12 +423,12 @@ struct AboutPane: View {
     }
 
     static let urls: [(String, String)] = [
-        ("notchapp://open", "Open the notch"),
-        ("notchapp://open/home", "Open on Home"),
-        ("notchapp://open/calendar", "Open on Calendar"),
-        ("notchapp://open/shelf", "Open on Shelf"),
-        ("notchapp://close", "Close the notch"),
-        ("notchapp://settings", "Open Settings"),
+        ("perch://open", "Open the notch"),
+        ("perch://open/home", "Open on Home"),
+        ("perch://open/calendar", "Open on Calendar"),
+        ("perch://open/shelf", "Open on Shelf"),
+        ("perch://close", "Close the notch"),
+        ("perch://settings", "Open Settings"),
     ]
 
     static var shortVersion: String {

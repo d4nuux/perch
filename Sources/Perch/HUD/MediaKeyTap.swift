@@ -126,7 +126,7 @@ final class MediaKeyTap {
         thread = nil
     }
 
-    private static let log = Logger(subsystem: "NotchApp", category: "MediaKeyTap")
+    private static let log = Logger(subsystem: "Perch", category: "MediaKeyTap")
     private var loggedTrust: Bool?
 
 
@@ -162,7 +162,7 @@ final class MediaKeyTap {
             CGEvent.tapEnable(tap: port, enable: true)
             CFRunLoopRun()
         }
-        t.name = "NotchApp.MediaKeyTap"
+        t.name = "Perch.MediaKeyTap"
         t.qualityOfService = .userInteractive
         thread = t
         t.start()

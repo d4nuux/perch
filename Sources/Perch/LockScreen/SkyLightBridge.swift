@@ -24,7 +24,7 @@ final class SkyLightBridge {
     /// kSLSSpaceAbsoluteLevelNotificationCenterAtScreenLock
     private static let lockScreenLevel: Int32 = 400
 
-    private let log = Logger(subsystem: "NotchApp", category: "LockScreen")
+    private let log = Logger(subsystem: "Perch", category: "LockScreen")
     private var mainConnectionID: MainConnectionID?
     private var spaceCreate: SpaceCreate?
     private var setAbsoluteLevel: SpaceSetAbsoluteLevel?

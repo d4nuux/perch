@@ -31,7 +31,7 @@ struct CalendarTab: View {
         VStack(spacing: 8) {
             Image(systemName: "calendar.badge.exclamationmark")
                 .font(.system(size: 20)).foregroundStyle(secondary)
-            Text("NotchApp needs access to your calendars")
+            Text("Perch needs access to your calendars")
                 .font(.system(size: 12)).foregroundStyle(secondary)
             Button { calendar.requestAccessOrOpenSettings() } label: {
                 Text("Allow calendar access")

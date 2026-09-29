@@ -1,12 +1,12 @@
 #!/bin/bash
-# Builds NotchApp.app in ./build and launches it.
+# Builds Perch.app in ./build and launches it.
 set -euo pipefail
 cd "$(dirname "$0")"
 swift build -c release
-APP=build/NotchApp.app
+APP=build/Perch.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/release/NotchApp "$APP/Contents/MacOS/"
+cp .build/release/Perch "$APP/Contents/MacOS/"
 # Now Playing helper: a dylib hosted by /usr/bin/perl (see Helper/MediaRemoteHelper.m).
 clang -dynamiclib -fobjc-arc -O2 -framework Foundation Helper/MediaRemoteHelper.m \
   -o "$APP/Contents/Resources/MediaRemoteHelper.dylib"
@@ -15,9 +15,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>CFBundleName</key><string>NotchApp</string>
+  <key>CFBundleName</key><string>Perch</string>
+  <key>CFBundleDisplayName</key><string>Perch</string>
   <key>CFBundleIdentifier</key><string>local.notchapp</string>
-  <key>CFBundleExecutable</key><string>NotchApp</string>
+  <key>CFBundleExecutable</key><string>Perch</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.2</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
@@ -30,7 +31,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>NSAudioCaptureUsageDescription</key><string>Draws a live waveform of the audio that's playing.</string>
   <key>CFBundleURLTypes</key><array><dict>
     <key>CFBundleURLName</key><string>local.notchapp</string>
-    <key>CFBundleURLSchemes</key><array><string>notchapp</string></array>
+    <key>CFBundleURLSchemes</key><array><string>perch</string><string>notchapp</string></array>
   </dict></array>
   <key>NSAppleEventsUsageDescription</key><string>Shows and controls what's playing in Spotify and Music.</string>
 </dict></plist>
@@ -42,4 +43,4 @@ else
   codesign --force --sign - "$APP"
 fi
 echo "Built $APP"
-[[ "${1:-}" == "--run" ]] && { pkill -x NotchApp || true; for _ in {1..50}; do pgrep -x NotchApp >/dev/null || break; sleep 0.1; done; sleep 0.5; open "$APP" || { sleep 1; open "$APP"; }; }
+[[ "${1:-}" == "--run" ]] && { pkill -x Perch || true; pkill -x NotchApp || true; for _ in {1..50}; do pgrep -x "Perch|NotchApp" >/dev/null || break; sleep 0.1; done; sleep 0.5; open "$APP" || { sleep 1; open "$APP"; }; }

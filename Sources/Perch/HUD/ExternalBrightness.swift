@@ -173,7 +173,7 @@ final class ExternalBrightness {
         var lastTouch = Date.distantPast
     }
 
-    private let queue = DispatchQueue(label: "NotchApp.ExternalBrightness", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "Perch.ExternalBrightness", qos: .userInitiated)
     private let lock = NSLock()
     private var mode: ExternalBrightnessMode = .off     // guarded by lock
     private var entries: [CGDirectDisplayID: Entry] = [:] // guarded by lock
