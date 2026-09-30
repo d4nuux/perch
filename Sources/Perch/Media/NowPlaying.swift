@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import SwiftUI
 
 /// Playback position, split out of `NowPlaying` so the 1 s tick only re-renders views that show
 /// progress (they observe `nowPlaying.clock`), not everything observing `NowPlaying`.
@@ -25,7 +26,9 @@ final class NowPlaying: ObservableObject {
     @Published private(set) var rawTitle = ""
     @Published var artist = ""
     @Published private(set) var album = ""
-    @Published var isPlaying = false { didSet { if isPlaying != oldValue { updateTicker() } } }
+    @Published var isPlaying = false {
+        didSet { if isPlaying != oldValue { updateTicker(); updateCollapsedVisible() } }
+    }
     /// Ticks every second while playing. Observe this (or `$position` on it) to show progress.
     let clock = PlaybackClock()
     /// Current position; not published (see `clock`).
@@ -47,7 +50,14 @@ final class NowPlaying: ObservableObject {
     /// The app that's playing is the frontmost app.
     @Published private(set) var sourceIsFrontmost = false
     /// "Hide while source app is frontmost" is on and it is: collapsed live activity should hide.
-    @Published private(set) var hidesCollapsedActivity = false
+    @Published private(set) var hidesCollapsedActivity = false {
+        didSet { if hidesCollapsedActivity != oldValue { updateCollapsedVisible() } }
+    }
+    /// Whether the closed notch shows the music activity. Shows at once, hides only after playback
+    /// has been stopped for a moment: sources pause briefly while buffering a seek or skipping,
+    /// and following that exactly made the notch snap shut and open again.
+    @Published private(set) var collapsedVisible = false
+    private var collapsedHideWork: DispatchWorkItem?
     @Published private(set) var shuffle: ShuffleState = .unknown
     @Published private(set) var repeatMode: RepeatState = .unknown
     @Published private(set) var isLiked: Bool?
@@ -56,7 +66,25 @@ final class NowPlaying: ObservableObject {
 
     var hasTrack: Bool { !title.isEmpty }
     /// Collapsed live activity should show (playing and not hidden by the frontmost-app setting).
-    var showsCollapsedActivity: Bool { isPlaying && !hidesCollapsedActivity }
+    var showsCollapsedActivity: Bool { collapsedVisible }
+
+    private func updateCollapsedVisible() {
+        let want = isPlaying && !hidesCollapsedActivity
+        collapsedHideWork?.cancel(); collapsedHideWork = nil
+        if want {
+            if !collapsedVisible { withAnimation(NotchModel.openAnimation) { collapsedVisible = true } }
+        } else if collapsedVisible {
+            // Hiding because the app came to front is deliberate: no grace period.
+            let delay: TimeInterval = hidesCollapsedActivity ? 0 : 1.5
+            let work = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.collapsedHideWork = nil
+                withAnimation(NotchModel.openAnimation) { self.collapsedVisible = false }
+            }
+            collapsedHideWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+        }
+    }
 
     private let settings = MediaSettings.shared
     private var cancellables: Set<AnyCancellable> = []

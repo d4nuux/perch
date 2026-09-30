@@ -344,8 +344,7 @@ final class NotchController {
 
     private func observeIdleInputs() {
         let triggers: [AnyPublisher<Void, Never>] = [
-            nowPlaying.$isPlaying.map { _ in () }.eraseToAnyPublisher(),
-            nowPlaying.$hidesCollapsedActivity.map { _ in () }.eraseToAnyPublisher(),
+            nowPlaying.$collapsedVisible.map { _ in () }.eraseToAnyPublisher(),
             calendar.$events.map { _ in () }.eraseToAnyPublisher(),
             display.$idleContent.map { _ in () }.eraseToAnyPublisher(),
             Timer.publish(every: 60, tolerance: 10, on: .main, in: .common).autoconnect()
