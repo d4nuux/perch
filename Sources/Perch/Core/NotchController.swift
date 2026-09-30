@@ -65,6 +65,7 @@ final class NotchController {
             ActivityService(context: context),
             GestureService(context: context),
             LockScreenService(context: context),
+            NotificationMirrorService(context: context),
         ]
 
         hosts = [makeHost(panel: primaryPanel)]

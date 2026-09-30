@@ -56,7 +56,7 @@ enum SettingsPaneGroup: String, CaseIterable, Identifiable {
 }
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, display, media, visualizer, huds, activities, calendar, lockScreen, gestures, permissions, about
+    case general, display, media, visualizer, huds, activities, notifications, calendar, lockScreen, gestures, permissions, about
 
     var id: String { rawValue }
 
@@ -68,6 +68,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .visualizer: "Visualizer"
         case .huds: "HUDs"
         case .activities: "Live Activities"
+        case .notifications: "Notifications"
         case .calendar: "Calendar & Weather"
         case .lockScreen: "Lock Screen"
         case .gestures: "Gestures"
@@ -84,6 +85,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .visualizer: "The animated bars next to the notch while music plays."
         case .huds: "Replace the system volume, brightness and keyboard overlays."
         case .activities: "Brief alerts in the notch for battery, devices, Focus and more."
+        case .notifications: "New emails and messages, mirrored into the notch."
         case .calendar: "Upcoming events, meeting alerts and local weather."
         case .lockScreen: "Widgets shown on the lock screen, under the clock."
         case .gestures: "Trackpad swipes on the notch."
@@ -106,12 +108,14 @@ enum SettingsPane: String, CaseIterable, Identifiable {
                      "betterdisplay", "external", "percentage", "duration", "focus", "lock"]
         case .activities: ["battery", "charging", "low power", "bluetooth", "airpods", "focus", "track",
                            "unlock", "devices"]
+        case .notifications: ["email", "mail", "gmail", "outlook", "banner", "message", "full disk access",
+                              "code", "otp", "verification"]
         case .calendar: ["events", "meeting", "alert", "time to leave", "travel", "chime", "weather",
                          "temperature", "city", "location", "agenda", "week"]
         case .lockScreen: ["widgets", "lock", "screensaver", "awake", "card"]
         case .gestures: ["swipe", "trackpad", "haptic", "sensitivity", "reverse"]
         case .permissions: ["privacy", "accessibility", "calendar", "bluetooth", "location", "automation",
-                            "audio", "reset"]
+                            "audio", "reset", "full disk access"]
         case .about: ["version", "build", "url", "onboarding", "quit"]
         }
     }
@@ -119,7 +123,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     var group: SettingsPaneGroup {
         switch self {
         case .general, .display, .gestures: .notch
-        case .media, .visualizer, .huds, .activities, .calendar, .lockScreen: .features
+        case .media, .visualizer, .huds, .activities, .notifications, .calendar, .lockScreen: .features
         case .permissions, .about: .app
         }
     }
@@ -138,6 +142,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .visualizer: "waveform"
         case .huds: "speaker.wave.2.fill"
         case .activities: "bolt.fill"
+        case .notifications: "bell.badge.fill"
         case .calendar: "calendar"
         case .lockScreen: "lock.fill"
         case .gestures: "hand.draw.fill"
@@ -154,6 +159,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .visualizer: .purple
         case .huds: .indigo
         case .activities: .green
+        case .notifications: .orange
         case .calendar: .red
         case .lockScreen: .cyan
         case .gestures: .teal
@@ -255,6 +261,7 @@ struct SettingsPaneView: View {
                 HUDSettingsSection().disabled(!settings.hudEnabled)
             }
         case .activities: SettingsPage(.activities) { ActivitiesSettingsSection() }
+        case .notifications: NotificationsPane()
         case .calendar:
             SettingsPage(.calendar) {
                 Section {

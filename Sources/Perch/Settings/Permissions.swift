@@ -7,7 +7,7 @@ import SwiftUI
 
 /// Privacy permissions Perch uses.
 enum Permission: String, CaseIterable, Identifiable {
-    case accessibility, calendar, automation, bluetooth, location, audioCapture
+    case accessibility, calendar, automation, bluetooth, location, audioCapture, fullDiskAccess
 
     var id: String { rawValue }
 
@@ -19,6 +19,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .bluetooth: "Bluetooth"
         case .location: "Location"
         case .audioCapture: "System Audio Recording"
+        case .fullDiskAccess: "Full Disk Access"
         }
     }
 
@@ -30,6 +31,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .bluetooth: "Device connect alerts with battery level"
         case .location: "Local weather and travel time"
         case .audioCapture: "Live waveform of what's playing"
+        case .fullDiskAccess: "Mirroring notifications into the notch"
         }
     }
 
@@ -41,6 +43,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .bluetooth: "dot.radiowaves.left.and.right"
         case .location: "location.fill"
         case .audioCapture: "waveform"
+        case .fullDiskAccess: "internaldrive.fill"
         }
     }
 
@@ -52,6 +55,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .bluetooth: .blue
         case .location: .blue
         case .audioCapture: .pink
+        case .fullDiskAccess: .gray
         }
     }
 
@@ -64,6 +68,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .bluetooth: "Privacy_Bluetooth"
         case .location: "Privacy_LocationServices"
         case .audioCapture: "Privacy_ScreenCapture"
+        case .fullDiskAccess: "Privacy_AllFiles"
         }
     }
 
@@ -72,7 +77,7 @@ enum Permission: String, CaseIterable, Identifiable {
     }
 
     /// False for permissions macOS can't report or prompt for ahead of time.
-    var canRequest: Bool { self != .automation && self != .audioCapture }
+    var canRequest: Bool { self != .automation && self != .audioCapture && self != .fullDiskAccess }
 }
 
 enum PermissionState: Equatable {
@@ -174,6 +179,8 @@ final class PermissionCenter: NSObject, ObservableObject, CBCentralManagerDelega
             }
         case .automation, .audioCapture:
             return .onDemand
+        case .fullDiskAccess:
+            return NotificationDBLocation.hasFullDiskAccess ? .granted : .notAllowed
         }
     }
 
@@ -197,7 +204,7 @@ final class PermissionCenter: NSObject, ObservableObject, CBCentralManagerDelega
                 locationManager = m
             }
             locationManager?.requestWhenInUseAuthorization()
-        case .automation, .audioCapture:
+        case .automation, .audioCapture, .fullDiskAccess:
             openSettings(p)
         }
     }
