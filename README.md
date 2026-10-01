@@ -50,6 +50,16 @@
 - Apple Silicon or Intel Mac. Displays without a notch can show a simulated one.
 - Xcode Command Line Tools (`xcode-select --install`). The full Xcode app isn't needed.
 
+## Download
+
+1. Download the latest `Perch-<version>.dmg` from [Releases](https://github.com/d4nuux/perch/releases/latest).
+2. Open it and drag **Perch** to **Applications**.
+3. Perch isn't notarized by Apple, so macOS blocks the first launch:
+   - macOS 15 or later: open Perch once, then go to **System Settings > Privacy & Security** and click **Open Anyway**.
+   - macOS 14: right-click Perch in Applications and choose **Open**.
+
+Or clear the quarantine flag in Terminal: `xattr -dr com.apple.quarantine /Applications/Perch.app`
+
 ## Build and install
 
 ```sh
