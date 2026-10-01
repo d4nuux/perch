@@ -35,7 +35,7 @@ struct CalendarEvent: Identifiable {
     }
 }
 
-/// Calendar events + upcoming-meeting live activity. (Owned by the Calendar agent.)
+/// Calendar events + upcoming-meeting live activity.
 /// Gated by `settings.calendarEnabled`. Refreshes on `.EKEventStoreChanged`, day change, wake,
 /// and once a minute (a single timer aligned to minute boundaries).
 final class CalendarService: ObservableObject {
@@ -131,6 +131,16 @@ final class CalendarService: ObservableObject {
         NSWorkspace.shared.open(url)
         context.model.dismissActivity(key: Self.activityKey)
     }
+
+    #if PERCH_PROBE
+    /// Screenshot probe only: call right after init. Shows `fake` events; EventKit is never queried
+    /// (marking the service enabled first makes the settings subscription a no-op).
+    func probeSeed(_ fake: [CalendarEvent]) {
+        enabled = true
+        access = .granted
+        events = fake
+    }
+    #endif
 
     // MARK: Lifecycle
 

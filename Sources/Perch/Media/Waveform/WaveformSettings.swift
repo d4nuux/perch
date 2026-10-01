@@ -1,6 +1,6 @@
 import Foundation
 
-/// Visualizer preferences (UserDefaults-backed). Owner: Waveform agent.
+/// Visualizer preferences (UserDefaults-backed).
 final class WaveformSettings: ObservableObject {
     static let shared = WaveformSettings()
     enum Style: String, CaseIterable { case bars, line }

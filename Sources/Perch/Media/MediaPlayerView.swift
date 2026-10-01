@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Player shown on the Home tab. (Owned by the Media agent.)
+/// Player shown on the Home tab.
 struct MediaPlayer: View {
     @EnvironmentObject var np: NowPlaying
     @ObservedObject private var settings = MediaSettings.shared

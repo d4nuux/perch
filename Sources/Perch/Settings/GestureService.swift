@@ -1,6 +1,6 @@
 import AppKit
 
-/// Trackpad swipe gestures on the notch. (Owned by the Settings/Gestures agent.)
+/// Trackpad swipe gestures on the notch.
 ///
 /// The panel only receives scroll events while the cursor is over the notch (it ignores mouse
 /// events otherwise), so a local monitor filtered to that window is enough.

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Activities sections for the Settings window. Owner: Activities agent.
+/// Activities sections for the Settings window.
 /// Category toggles for charging / Bluetooth / track changes live in AppSettings; everything else
 /// in ActivitySettings.
 struct ActivitiesSettingsSection: View {

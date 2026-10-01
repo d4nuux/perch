@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// HUD sections for the Settings window. Owner: HUD agent. The pane header carries the master
+/// HUD sections for the Settings window. The pane header carries the master
 /// switch (`AppSettings.hudEnabled`) and disables this whole view when it's off.
 struct HUDSettingsSection: View {
     @ObservedObject private var s = HUDSettings.shared

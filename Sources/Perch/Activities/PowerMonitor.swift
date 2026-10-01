@@ -2,7 +2,7 @@ import Foundation
 import IOKit.ps
 
 /// Power-source transitions from `IOPSNotificationCreateRunLoopSource` (no polling).
-/// Emits plug / unplug, low-battery crossings (thresholds supplied by the owner), "fully charged"
+/// Emits plug / unplug, low-battery crossings (thresholds supplied by the caller), "fully charged"
 /// (100%, or charging stopped at a charge limit), and in-place updates when a time estimate arrives.
 final class PowerMonitor {
     enum Event {

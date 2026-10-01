@@ -2,7 +2,7 @@ import AppKit
 import Combine
 import CoreAudio
 
-/// Replaces the system volume / brightness / keyboard-backlight HUDs. (Owned by the HUD agent.)
+/// Replaces the system volume / brightness / keyboard-backlight HUDs.
 ///
 /// Media keys are intercepted by `MediaKeyTap`. While `settings.hudEnabled` and the per-HUD toggle
 /// in `HUDSettings` are on, keys we can service are swallowed (so the system OSD never appears),

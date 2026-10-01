@@ -3,7 +3,7 @@ import Combine
 import CoreLocation
 import Foundation
 
-/// Current weather for the user's location. (Owned by the Calendar & Weather agent.)
+/// Current weather for the user's location.
 /// Other features read `WeatherService.shared.current` and observe it; don't modify this API shape.
 struct WeatherSnapshot: Equatable {
     var temperature: Double        // °C
@@ -52,6 +52,14 @@ final class WeatherService: ObservableObject {
     }
 
     private init() {}
+
+    #if PERCH_PROBE
+    /// Screenshot probe only: publishes `snapshot` and holds a token so `acquire` never fetches.
+    func probeSeed(_ snapshot: WeatherSnapshot) {
+        demand.insert("probe")
+        current = snapshot
+    }
+    #endif
 
     /// Legacy entry point: same as `acquire("legacy")` (never released). Prefer acquire/release.
     func start() { acquire("legacy") }

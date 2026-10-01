@@ -1,6 +1,6 @@
 import Foundation
 
-/// Media preferences (UserDefaults-backed). Owner: Media agent.
+/// Media preferences (UserDefaults-backed).
 final class MediaSettings: ObservableObject {
     static let shared = MediaSettings()
     private let d = UserDefaults.standard

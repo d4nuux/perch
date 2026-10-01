@@ -3,7 +3,7 @@ import Combine
 import OSLog
 import SwiftUI
 
-/// Mirrors delivered macOS notifications (email first) into the notch. (Owned by the Notifications agent.)
+/// Mirrors delivered macOS notifications (email first) into the notch.
 ///
 /// Pipeline: usernoted SQLite DB (read-only, needs Full Disk Access) → vnode watcher on db/db-wal
 /// (debounced 300ms) → query rows newer than the last seen rec_id → decode plist + classify on a

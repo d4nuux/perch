@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Calendar sections for the Settings window. Owner: Calendar agent.
-/// Persist new options in your own ObservableObject in this folder; don't grow Core/AppSettings.
+/// Calendar sections for the Settings window.
+/// Options persist in the folder's own settings object rather than Core/AppSettings.
 struct CalendarSettingsSection: View {
     @ObservedObject var s = CalendarSettings.shared
     @ObservedObject private var app = AppSettings.shared

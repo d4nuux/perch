@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// Display rows for the Settings window (a Form section). Owner: Display agent.
-/// Persist new options in your own ObservableObject in this folder; don't grow Core/AppSettings.
+/// Display rows for the Settings window (a Form section).
+/// Options persist in the folder's own settings object rather than Core/AppSettings.
 struct DisplaySettingsSection: View {
     @ObservedObject private var display = DisplaySettings.shared
     @ObservedObject private var app = AppSettings.shared

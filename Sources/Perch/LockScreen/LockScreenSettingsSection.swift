@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// LockScreen sections for the Settings window. Owner: LockScreen agent.
+/// LockScreen sections for the Settings window.
 /// The master "Lock screen widgets" switch lives in AppSettings (pane header); these are the per-widget options.
 struct LockScreenSettingsSection: View {
     @ObservedObject private var s = LockScreenSettings.shared

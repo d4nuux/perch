@@ -2,7 +2,7 @@ import AppKit
 import ServiceManagement
 import SwiftUI
 
-/// Settings window: System Settings-style sidebar + grouped form panes. (Owned by the Settings agent.)
+/// Settings window: System Settings-style sidebar + grouped form panes.
 enum SettingsWindow {
     private static var window: NSWindow?
 

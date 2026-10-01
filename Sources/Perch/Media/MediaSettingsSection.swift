@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Media rows for the Settings window (a Form section). Owner: Media agent.
+/// Media rows for the Settings window (a Form section).
 struct MediaSettingsSection: View {
     @ObservedObject private var s = MediaSettings.shared
 

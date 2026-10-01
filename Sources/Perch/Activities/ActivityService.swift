@@ -4,7 +4,7 @@ import CoreBluetooth
 import SwiftUI
 
 /// Charging, battery, Low Power Mode, Focus, Bluetooth device, unlock and track-change live
-/// activities. (Owned by the Activities agent.)
+/// activities.
 ///
 /// Sources are event-driven (IOPS run-loop source, ProcessInfo / distributed notifications, a
 /// vnode watch on the Focus DB, IOBluetooth notifications, Combine on NowPlaying). The only timer

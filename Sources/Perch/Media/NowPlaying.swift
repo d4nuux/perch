@@ -170,6 +170,14 @@ final class NowPlaying: ObservableObject {
         applySource()
     }
 
+    #if PERCH_PROBE
+    /// Screenshot probe only (built with -D PERCH_PROBE): a player showing fixed fake state.
+    /// No MediaRemote helper or AppleScript source is started.
+    init(probe state: MediaRemoteSource.State) {
+        applyRemoteNow(state)
+    }
+    #endif
+
     // MARK: Source selection
 
     private func applySource() {

@@ -2,7 +2,7 @@ import EventKit
 import Foundation
 import MapKit
 
-/// Calendar options (UserDefaults-backed). Owner: Calendar agent.
+/// Calendar options (UserDefaults-backed).
 final class CalendarSettings: ObservableObject {
     static let shared = CalendarSettings()
     private let d = UserDefaults.standard
