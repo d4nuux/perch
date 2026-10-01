@@ -14,12 +14,14 @@ codesign -dvv "$APP" 2>&1 | grep -E '^(Identifier|Authority|Signature|TeamIdenti
 
 mkdir -p dist
 DMG="dist/Perch-$VERSION.dmg"
-STAGE=$(mktemp -d)
-trap 'rm -rf "$STAGE"' EXIT
-cp -R "$APP" "$STAGE/"
-ln -s /Applications "$STAGE/Applications"
 rm -f "$DMG"
-hdiutil create -volname Perch -srcfolder "$STAGE" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null
+
+# Installer window: designed background, fixed layout, volume icon (dmgbuild writes the .DS_Store, no Finder scripting)
+VENV=.build/dmgvenv
+[ -x "$VENV/bin/dmgbuild" ] || { python3 -m venv "$VENV" && "$VENV/bin/pip" install -q dmgbuild; }
+mkdir -p tools/dmg/build
+swift tools/dmg/background.swift tools/dmg/build >/dev/null
+"$VENV/bin/dmgbuild" -s tools/dmg/settings.py -D app="$APP" -D background=tools/dmg/build/background.png Perch "$DMG" >/dev/null
 (cd dist && shasum -a 256 "Perch-$VERSION.dmg" > "Perch-$VERSION.dmg.sha256")
 # Stable name so the site can link releases/latest/download/Perch.dmg
 cp "$DMG" dist/Perch.dmg
