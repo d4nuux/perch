@@ -85,7 +85,7 @@
         <li><a href="#features">Features</a></li>
         <li><a href="#open-source">Open source</a></li>
         <li><a href="#faq">FAQ</a></li>
-        <li class="nav-install"><a href="#install">Install</a></li>
+        <li class="nav-install"><a href="#install">Download</a></li>
       </ul>
     </nav>
     <a class="btn btn-ghost btn-sm gh-btn" href="https://github.com/d4nuux/perch" rel="noopener">
@@ -105,9 +105,9 @@
       <h1 id="hero-title" class="reveal">Your notch, <span class="grad">alive.</span></h1>
       <p class="lede reveal">Perch turns the MacBook notch into a live, interactive island for music, HUDs, alerts and your day.</p>
       <div class="cta-row reveal">
-        <a class="btn btn-primary" href="#install">
+        <a class="btn btn-primary" href="https://github.com/d4nuux/perch/releases/latest/download/Perch.dmg">
           <svg class="ic" aria-hidden="true"><use href="#i-arrow"/></svg>
-          Download / Build from source
+          Download for macOS
         </a>
         <a class="btn btn-ghost" href="https://github.com/d4nuux/perch" rel="noopener">
           <svg class="ic" aria-hidden="true"><use href="#i-star"/></svg>
@@ -115,6 +115,7 @@
           <span class="star-count" data-stars hidden><span data-stars-num></span></span>
         </a>
       </div>
+      <p class="cta-note reveal">Apple Silicon · macOS 14+ · or <a href="#install">build from source</a></p>
     </div>
 
     <div class="device-wrap reveal">
@@ -480,9 +481,29 @@
     <div class="wrap">
       <header class="sec-head reveal">
         <p class="eyebrow">Install</p>
-        <h2 id="install-title">One command.</h2>
-        <p class="sec-sub">Perch is built from source with the Xcode Command Line Tools. The full Xcode app isn't needed.</p>
+        <h2 id="install-title">Get Perch.</h2>
+        <p class="sec-sub">Download the app, or build it yourself with one command.</p>
       </header>
+
+      <div class="dl-card reveal">
+        <div class="dl-main">
+          <h3>Download</h3>
+          <p class="muted">The ready-made app. Free, about 3.5 MB.</p>
+          <a class="btn btn-primary" href="https://github.com/d4nuux/perch/releases/latest/download/Perch.dmg"><svg class="ic" aria-hidden="true"><use href="#i-arrow"/></svg>Download Perch.dmg</a>
+          <p class="muted-sm">Apple Silicon · macOS 14 or later · <a href="https://github.com/d4nuux/perch/releases" rel="noopener">all releases</a></p>
+        </div>
+        <div class="dl-steps">
+          <h3>First launch</h3>
+          <p class="muted">Perch is self-signed, not notarized by Apple, so macOS blocks it once:</p>
+          <ol>
+            <li>Open the DMG and drag Perch into Applications.</li>
+            <li>Open Perch, then close the "can't verify the developer" alert.</li>
+            <li>In <b>System Settings › Privacy &amp; Security</b>, click <b>Open Anyway</b>. On macOS 14 you can right-click Perch and choose <b>Open</b> instead.</li>
+          </ol>
+        </div>
+      </div>
+
+      <h3 class="build-title reveal">Or build from source</h3>
 
       <div class="install-grid">
         <div class="codecard reveal">
@@ -505,7 +526,7 @@ cd perch
           <h3>Requirements</h3>
           <ul class="req-list">
             <li><b>macOS 14 Sonoma</b> or later <span class="muted">(live visualizer needs 14.4+)</span></li>
-            <li><b>Apple Silicon or Intel.</b> Displays without a notch can show a simulated one.</li>
+            <li><b>Apple Silicon or Intel.</b> On Intel, build from source. Displays without a notch can show a simulated one.</li>
             <li><b>Xcode Command Line Tools</b> <code>xcode-select --install</code></li>
           </ul>
           <div class="note">
@@ -536,7 +557,11 @@ cd perch
         </details>
         <details class="reveal">
           <summary>Why isn't it on the App Store?</summary>
-          <p>Because of those private frameworks. The App Store doesn't allow them, so Perch is built from source instead.</p>
+          <p>Because of those private frameworks. The App Store doesn't allow them, so Perch is distributed here instead.</p>
+        </details>
+        <details class="reveal">
+          <summary>Why does macOS warn me when I open it?</summary>
+          <p>Notarizing needs a paid Apple Developer account; Perch is self-signed instead. The warning shows once. After <b>Open Anyway</b> it launches normally. Prefer not to trust a download? Build it from source.</p>
         </details>
         <details class="reveal">
           <summary>My Mac doesn't have a notch. Does it work?</summary>
@@ -563,8 +588,8 @@ cd perch
       <img src="assets/img/icon.png" width="96" height="96" alt="Perch app icon" loading="lazy">
       <h2 id="final-title">Give your notch something to do.</h2>
       <div class="cta-row">
-        <a class="btn btn-primary" href="#install"><svg class="ic" aria-hidden="true"><use href="#i-arrow"/></svg>Build from source</a>
-        <a class="btn btn-ghost" href="https://github.com/d4nuux/perch" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>d4nuux/perch</a>
+        <a class="btn btn-primary" href="https://github.com/d4nuux/perch/releases/latest/download/Perch.dmg"><svg class="ic" aria-hidden="true"><use href="#i-arrow"/></svg>Download for macOS</a>
+        <a class="btn btn-ghost" href="#install"><svg class="ic" aria-hidden="true"><use href="#i-code"/></svg>Build from source</a>
       </div>
     </div>
   </section>

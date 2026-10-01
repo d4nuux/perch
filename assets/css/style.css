@@ -77,9 +77,9 @@ code { font-family: var(--mono); font-size: .88em; background: rgba(255,255,255,
 .btn-primary {
   color: #120a07;
   background: linear-gradient(180deg, #fff 0%, #ffe6d8 100%);
-  box-shadow: 0 0 0 1px rgba(255,255,255,.4) inset, 0 10px 30px -10px rgba(255, 138, 107, .55), 0 0 0 0 rgba(255,138,107,0);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.4) inset;
 }
-.btn-primary:hover { box-shadow: 0 0 0 1px rgba(255,255,255,.5) inset, 0 14px 40px -10px rgba(255, 138, 107, .75), 0 0 0 6px rgba(255,138,107,.12); transform: translateY(-1px); }
+.btn-primary:hover { background: linear-gradient(180deg, #fff 0%, #fff0e8 100%); transform: translateY(-1px); }
 .btn-ghost { color: var(--text); background: rgba(255,255,255,.04); border-color: var(--line-2); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 .btn-ghost:hover { background: rgba(255,255,255,.09); border-color: rgba(255,255,255,.24); }
 .btn-sm { --h: 36px; padding: 0 14px; font-size: 14px; gap: 8px; }
@@ -464,6 +464,18 @@ kbd { display: inline-grid; place-items: center; min-width: 26px; height: 24px; 
 
 /* ---------- Install ---------- */
 .install { border-top: 1px solid var(--line); }
+.cta-note { margin: 16px 0 0; font-size: 13px; color: var(--dim); }
+.cta-note a { color: var(--muted); text-underline-offset: 3px; }
+.cta-note a:hover { color: var(--text); }
+.dl-card { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 32px; margin-bottom: 56px; padding: 32px; border-radius: 20px; border: 1px solid var(--line-2); background: #070709; }
+.dl-card h3, .build-title { font-size: 20px; letter-spacing: -.01em; }
+.dl-main .muted { margin: 8px 0 20px; }
+.dl-main .muted-sm { margin: 14px 0 0; }
+.dl-main a:not(.btn), .dl-steps a { color: var(--peach); }
+.dl-steps .muted { margin: 8px 0 12px; }
+.dl-steps ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; color: var(--muted); font-size: 15px; line-height: 1.55; }
+.dl-steps b { color: var(--text); }
+.build-title { margin: 0 0 20px; }
 .install-grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 24px; align-items: start; }
 .codecard { border-radius: 20px; overflow: hidden; border: 1px solid var(--line-2); background: #070709; box-shadow: 0 40px 80px -40px rgba(181,140,255,.25), 0 0 0 1px #000; }
 .codecard-bar { display: flex; align-items: center; gap: 14px; height: 48px; padding: 0 12px 0 18px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.02); }
@@ -534,7 +546,8 @@ kbd { display: inline-grid; place-items: center; min-width: 26px; height: 24px; 
 @media (max-width: 900px) {
   .feat { grid-template-columns: 1fr; gap: 36px; padding: 48px 0; }
   .feat-flip .feat-copy { order: 0; }
-  .os-grid, .install-grid { grid-template-columns: 1fr; gap: 40px; }
+  .os-grid, .install-grid, .dl-card { grid-template-columns: 1fr; gap: 40px; }
+  .dl-card { padding: 24px; gap: 28px; }
   .steps { grid-template-columns: 1fr; gap: 22px; }
   .nav-links li:not(.nav-install) { display: none; }
 }
