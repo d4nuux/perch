@@ -69,7 +69,7 @@ final class NotificationMirrorService {
         let wanted = settings.enabled && access
         if settings.enabled && !access {
             if accessRetry == nil {
-                Self.log.info("enabled, waiting for Full Disk Access")
+                Self.log.notice("enabled, waiting for Full Disk Access")
                 accessRetry = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.evaluate() }
             }
         } else if let t = accessRetry {
@@ -99,7 +99,7 @@ final class NotificationMirrorService {
         let w = NotificationWatcher(dbURL: url, queue: queue) { [weak self] in self?.poll() }
         w.start()
         watcher = w
-        Self.log.info("watching notifications (last id \(self.lastSeen))")
+        Self.log.notice("watching notifications (last id \(self.lastSeen))")
     }
 
     private func stop() {
@@ -134,7 +134,7 @@ final class NotificationMirrorService {
             seen[id] == date || date < floor || now.timeIntervalSince(date) > Self.staleAfter
         }
         guard !records.isEmpty else { return }
-        Self.log.info("db change: \(records.count) new record(s)")
+        Self.log.notice("db change: \(records.count) new record(s)")
         for r in records {
             seen[r.recID] = r.delivered
             lastSeen = max(lastSeen, r.recID)
@@ -162,7 +162,7 @@ final class NotificationMirrorService {
     private func receive(_ items: [NotificationItem]) {
         guard running else { return }
         for i in items {
-            Self.log.info("notification from \(i.bundleID, privacy: .public) kind=\(String(describing: i.kind), privacy: .public) allowed=\(self.allow(i)) quiet=\(self.model.quietMode) blocked=\(self.blocked)")
+            Self.log.notice("notification from \(i.bundleID, privacy: .public) kind=\(String(describing: i.kind), privacy: .public) allowed=\(self.allow(i)) quiet=\(self.model.quietMode) blocked=\(self.blocked)")
         }
         let allowed = items.filter(allow).map { settings.detectCodes ? $0 : $0.withoutCode() }
         guard !allowed.isEmpty else { return }

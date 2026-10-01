@@ -181,7 +181,20 @@ final class CalendarService: ObservableObject {
             [weak self] _ in self?.tick()
         }))
         checkAccess(prompt: false)
+        // Server-side edits (Google/Exchange) only reach EventKit after the Mac syncs; nudge it.
+        if access == .granted, Date().timeIntervalSince(lastSourceRefresh) > 300 { refreshSources() }
     }
+
+    /// Asks the calendar accounts to sync. Changes arrive later as `.EKEventStoreChanged`.
+    private var lastSourceRefresh = Date.distantPast
+    private func refreshSources() {
+        lastSourceRefresh = Date()
+        store.refreshSourcesIfNecessary()
+    }
+
+    /// Event ids whose alert was held back once for a fresh sync (so a moved or deleted event
+    /// doesn't alert from stale data).
+    private var verified: [String: Date] = [:]
 
     private func stop() {
         timer?.invalidate()
@@ -308,6 +321,17 @@ final class CalendarService: ObservableObject {
             if lead > 0, lead <= leadTime, fired[soonKey] == nil, fired[nowKey] == nil { due = (e, false); break }
         }
         guard let due else { return }
+
+        // First time this alert is due: sync, re-read, and only then alert if it's still there.
+        verified = verified.filter { now.timeIntervalSince($0.value) < 600 }
+        if verified[due.event.id] == nil {
+            verified[due.event.id] = now
+            refreshSources()
+            let work = DispatchWorkItem { [weak self] in self?.reload() }
+            alertWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4, execute: work)
+            return
+        }
 
         let model = context.model
         if model.isExpanded || model.activity?.key.hasPrefix("hud.") == true {
