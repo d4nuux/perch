@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Perch — Your notch, alive.</title>
+  <meta name="description" content="Perch turns the MacBook notch into a live, interactive island for music, HUDs, alerts and your day. Free, open source (MIT), native Swift.">
+  <meta name="theme-color" content="#000000">
+  <meta name="color-scheme" content="dark">
+  <link rel="canonical" href="https://d4nuux.github.io/perch/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Perch">
+  <meta property="og:title" content="Perch — Your notch, alive.">
+  <meta property="og:description" content="A free, open-source macOS app that turns the MacBook notch into a live island for music, HUDs, live activities, notifications and your calendar.">
+  <meta property="og:url" content="https://d4nuux.github.io/perch/">
+  <meta property="og:image" content="https://d4nuux.github.io/perch/assets/media/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Perch: the MacBook notch showing a music player">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Perch — Your notch, alive.">
+  <meta name="twitter:description" content="Free, open-source macOS app that turns the MacBook notch into a live, interactive island.">
+  <meta name="twitter:image" content="https://d4nuux.github.io/perch/assets/media/og.png">
+
+  <link rel="icon" type="image/png" sizes="64x64" href="assets/img/favicon-64.png">
+  <link rel="icon" type="image/png" sizes="256x256" href="assets/img/icon.png">
+  <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <script>document.documentElement.classList.add('js');</script>
+  <script src="assets/js/main.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-github" viewBox="0 0 24 24"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a10.9 10.9 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path fill="currentColor" d="m12 2.6 2.9 5.9 6.5.95-4.7 4.58 1.1 6.47L12 17.45l-5.8 3.05 1.1-6.47L2.6 9.45l6.5-.95L12 2.6Z"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 4v15m0 0-6-6m6 6 6-6"/></symbol>
+    <symbol id="i-ext" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M7 17 17 7M8 7h9v9"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/></g></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-speaker" viewBox="0 0 24 24"><path fill="currentColor" d="M4 9.2h3.2L12 5v14l-4.8-4.2H4a1 1 0 0 1-1-1v-3.6a1 1 0 0 1 1-1Z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M15.5 9a4.2 4.2 0 0 1 0 6M18.2 6.6a7.6 7.6 0 0 1 0 10.8"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2" fill="currentColor"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path fill="currentColor" d="M13.5 2 5 13.5h6L10 22l9-12h-6.2L13.5 2Z"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15l1.5-2ZM10 20.5a2.2 2.2 0 0 0 4 0"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path fill="currentColor" d="M19 3.5v11.8a3 3 0 1 1-2-2.83V7.4l-7 1.6v8.3a3 3 0 1 1-2-2.83V6.1l11-2.6Z"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="10" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 12h4l2.5-6 5 12 2.5-6h4"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path stroke-linecap="round" d="M3.5 10h17M8 3v4M16 3v4"/></g></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></g></symbol>
+    <symbol id="i-hand" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11m0-1V4a1.5 1.5 0 0 1 3 0v7m0-4.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-.5a6 6 0 0 1-4.6-2.2L3.6 15a1.6 1.6 0 0 1 2.5-2L9 15.5"/></symbol>
+    <symbol id="i-tray" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M3.5 13.5 6 6h12l2.5 7.5V18a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 18v-4.5Zm0 0H8l1.5 2.5h5l1.5-2.5h4.5"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M10.3 3h3.4l.5 2.5 1.7.9 2.4-.9 1.7 2.9-1.9 1.7v1.8l1.9 1.7-1.7 2.9-2.4-.9-1.7.9-.5 2.5h-3.4l-.5-2.5-1.7-.9-2.4.9-1.7-2.9 1.9-1.7v-1.8L3.6 8.4l1.7-2.9 2.4.9 1.7-.9.5-2.5Z"/><circle cx="12" cy="12" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3.2 2.8 11h2.7v9h5v-5.5h3V20h5v-9h2.7L12 3.2Z"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path fill="currentColor" d="M11 6v12L2.5 12 11 6Zm10 0v12l-8.5-6L21 6Z"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path fill="currentColor" d="M13 6v12l8.5-6L13 6ZM3 6v12l8.5-6L3 6Z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path fill="currentColor" d="M6.5 4.5h3.5v15H6.5zM14 4.5h3.5v15H14z"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="12" cy="7.5" r="4.5" fill="currentColor"/><path fill="currentColor" d="M10.6 11h2.8v3l1.2 1.2-1.2 1.3 1.2 1.3-2 2.2-2-1.6V11Z"/><circle cx="12" cy="6.5" r="1.4" fill="#000"/></symbol>
+    <symbol id="i-wifi" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M3 9.5a13 13 0 0 1 18 0M6.2 13a8.4 8.4 0 0 1 11.6 0M9.4 16.4a3.8 3.8 0 0 1 5.2 0"/><circle cx="12" cy="19.6" r="1.4" fill="currentColor"/></symbol>
+    <symbol id="i-airpods" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="6.6" cy="7" r="3.6"/><rect x="7.4" y="7" width="2.6" height="13" rx="1.3"/><circle cx="17.4" cy="7" r="3.6"/><rect x="14" y="7" width="2.6" height="13" rx="1.3"/></g><circle cx="5.6" cy="6.6" r="1.1" fill="#000"/><circle cx="18.4" cy="6.6" r="1.1" fill="#000"/></symbol>
+    <symbol id="i-case" viewBox="0 0 24 24"><rect x="3.5" y="6" width="17" height="12.5" rx="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path stroke="currentColor" stroke-width="1.6" d="M3.5 10.5h17"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m8 7-5 5 5 5M16 7l5 5-5 5M13.5 4.5l-3 15"/></symbol>
+    <symbol id="i-scale" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 3.5v17M7 20.5h10M4.5 7.5h15M4.5 7.5 2 14a3 3 0 0 0 5 0L4.5 7.5Zm15 0L17 14a3 3 0 0 0 5 0l-2.5-6.5Z"/></symbol>
+    <symbol id="i-eye-off" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c5.5 0 9 7 9 7a16 16 0 0 1-2.6 3.4M6.6 6.6C4.3 8.1 3 12 3 12s3.5 7 9 7a9.6 9.6 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+    <symbol id="i-user-off" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0M3 3l18 18"/></g></symbol>
+    <symbol id="i-swift" viewBox="0 0 24 24"><path fill="currentColor" d="M19.6 15.2c1.1-3.9-.9-8.4-5.6-11.3 2.6 3.6 3.4 7.4 2.3 9.9-2.5-1.5-6.4-4.6-9.6-8.1 2.2 3.1 4.5 5.5 6.6 7.4C9.8 12 6.4 9.6 3.6 6.8c2.5 4.3 6.3 8 10.6 10.2-3 1.4-6.8 1.3-10.7-.4 3.2 2.6 7.6 3.6 11.4 2.6 2.4-.6 4.3.4 5.6 1.9.1-1.3-.4-3.4-.9-5.9Z"/></symbol>
+  </defs>
+</svg>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav" id="top">
+  <div class="nav-inner">
+    <a class="brand" href="#top" aria-label="Perch home">
+      <img src="assets/img/favicon-64.png" alt="" width="28" height="28">
+      <span>Perch</span>
+    </a>
+    <nav aria-label="Primary">
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#open-source">Open source</a></li>
+        <li><a href="#faq">FAQ</a></li>
+        <li class="nav-install"><a href="#install">Install</a></li>
+      </ul>
+    </nav>
+    <a class="btn btn-ghost btn-sm gh-btn" href="https://github.com/d4nuux/perch" rel="noopener">
+      <svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>
+      <span class="gh-label">GitHub</span>
+      <span class="star-count" data-stars hidden><svg class="ic ic-xs" aria-hidden="true"><use href="#i-star"/></svg><span data-stars-num></span></span>
+    </a>
+  </div>
+</header>
+
+<main id="main">
+  <!-- HERO -->
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="wrap hero-copy">
+      <p class="pill reveal"><span class="pill-dot" aria-hidden="true"></span>Free &amp; open source · macOS 14+</p>
+      <h1 id="hero-title" class="reveal">Your notch, <span class="grad">alive.</span></h1>
+      <p class="lede reveal">Perch turns the MacBook notch into a live, interactive island for music, HUDs, alerts and your day.</p>
+      <div class="cta-row reveal">
+        <a class="btn btn-primary" href="#install">
+          <svg class="ic" aria-hidden="true"><use href="#i-arrow"/></svg>
+          Download / Build from source
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/d4nuux/perch" rel="noopener">
+          <svg class="ic" aria-hidden="true"><use href="#i-star"/></svg>
+          Star on GitHub
+          <span class="star-count" data-stars hidden><span data-stars-num></span></span>
+        </a>
+      </div>
+    </div>
+
+    <div class="device-wrap reveal">
+      <div class="device" id="device">
+        <div class="screen" id="screen">
+          <div class="screen-inner" id="screen-inner">
+            <div class="wallpaper" aria-hidden="true"></div>
+            <div class="menubar" aria-hidden="true">
+              <div class="mb-left">
+                <span class="mb-glyph"><i></i><i></i><i></i><i></i></span>
+                <b>Perch</b><span>File</span><span>Edit</span><span class="mb-x">View</span><span class="mb-x">Window</span>
+              </div>
+              <div class="mb-right">
+                <svg class="mb-ic" aria-hidden="true"><use href="#i-wifi"/></svg>
+                <span class="mb-batt"><i></i></span>
+                <span data-clock-menubar>Thu 1 Oct 7:22 PM</span>
+              </div>
+            </div>
+
+            <!-- The live notch -->
+            <div class="notch" id="notch" data-state="idle" tabindex="0" role="button" aria-label="Interactive demo of the Perch notch. Press to expand the player." aria-pressed="false">
+              <div class="n-layer n-music" aria-hidden="true">
+                <span class="art art-sm"></span>
+                <span class="viz"><i></i><i></i><i></i><i></i><i></i></span>
+              </div>
+              <div class="n-layer n-volume" aria-hidden="true">
+                <svg class="n-ic"><use href="#i-speaker"/></svg>
+                <span class="n-right"><span class="track"><span class="fill"></span></span><span class="n-num" data-vol>62</span></span>
+              </div>
+              <div class="n-layer n-charging" aria-hidden="true">
+                <span class="batt"><i></i><svg><use href="#i-bolt"/></svg></span>
+                <span class="n-right"><b class="green">76%</b><span class="dim">38m</span></span>
+              </div>
+              <div class="n-layer n-airpods" aria-hidden="true">
+                <div class="row1">
+                  <svg class="n-ic"><use href="#i-airpods"/></svg>
+                  <b>AirPods Pro</b>
+                </div>
+                <div class="row2">
+                  <span><small>L</small>84%</span><span><small>R</small>79%</span><span><svg><use href="#i-case"/></svg>62%</span>
+                </div>
+              </div>
+              <div class="n-layer n-notif" aria-hidden="true">
+                <div class="nf-top"><span class="avatar">LB</span><svg class="n-ic key"><use href="#i-key"/></svg></div>
+                <div class="nf-head">
+                  <span><b>Lumen Bank</b> <span class="dim">· now</span></span>
+                  <button class="code-chip" type="button" tabindex="-1" data-copy-code="482913"><svg><use href="#i-copy"/></svg><span>Copy 482913</span></button>
+                </div>
+                <b class="nf-title">Your sign-in code</b>
+                <span class="nf-body">Your verification code is 482913. It expires in 10 minutes.</span>
+              </div>
+              <div class="n-layer n-player" aria-hidden="true">
+                <div class="pl-top">
+                  <span class="tabs"><span class="tab on"><svg><use href="#i-home"/></svg></span><span class="tab"><svg><use href="#i-cal"/></svg></span><span class="tab"><svg><use href="#i-tray"/></svg></span></span>
+                  <span class="pl-status">82% <span class="mb-batt sm"><i></i></span></span>
+                </div>
+                <div class="pl-body">
+                  <span class="art art-lg"></span>
+                  <div class="pl-meta">
+                    <b class="pl-title">Midnight Lanterns</b>
+                    <span class="pl-artist">The Paper Orchards</span>
+                    <span class="pl-bar"><i></i></span>
+                    <span class="pl-times"><span>1:25</span><span>3:34</span></span>
+                    <span class="pl-ctrl"><svg><use href="#i-prev"/></svg><svg class="big"><use href="#i-pause"/></svg><svg><use href="#i-next"/></svg></span>
+                  </div>
+                  <div class="pl-clock">
+                    <span data-clock-day>Thursday</span>
+                    <b data-clock-time>7:22</b>
+                    <span data-clock-date>1 October</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="states" role="group" aria-label="Notch demo states">
+        <button type="button" data-goto="idle">Idle</button>
+        <button type="button" data-goto="music">Music</button>
+        <button type="button" data-goto="volume">Volume</button>
+        <button type="button" data-goto="charging">Charging</button>
+        <button type="button" data-goto="airpods">AirPods</button>
+        <button type="button" data-goto="notif">Notification</button>
+        <button type="button" data-goto="player">Player</button>
+      </div>
+      <p class="hint">Hover or tap the notch to open it.</p>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="section" id="features" aria-labelledby="features-title">
+    <div class="wrap">
+      <header class="sec-head reveal">
+        <p class="eyebrow">Features</p>
+        <h2 id="features-title">The notch you already have,<br class="br-lg"> doing a lot more.</h2>
+        <p class="sec-sub">Music, system overlays, live activities, notifications and your calendar, in the space that used to be dead pixels.</p>
+      </header>
+
+      <!-- Media -->
+      <article class="feat reveal" aria-labelledby="f-media">
+        <div class="feat-copy">
+          <p class="feat-tag"><svg class="ic" aria-hidden="true"><use href="#i-music"/></svg>Media</p>
+          <h3 id="f-media">Now Playing, from any app.</h3>
+          <p>Browsers included. Artwork, title, artist, a seekable progress bar and playback controls, right under the camera.</p>
+          <ul class="ticks">
+            <li>Optional shuffle, repeat and like buttons</li>
+            <li>Artwork styles: full color, gradient backdrop or mono</li>
+            <li>The player can take its tint from the artwork</li>
+            <li>Closed, the notch shows the artwork and a live audio visualizer</li>
+          </ul>
+        </div>
+        <div class="feat-media">
+          <figure class="scr scr-home" style="--cw:1200;--ch:340;--vw:1360;--fw:92;--rr:52">
+            <div class="scr-bar" aria-hidden="true"></div>
+            <div class="nclip">
+              <div class="nclip-in">
+                <video class="clip" data-clip="home" autoplay muted loop playsinline preload="metadata" poster="assets/media/home-poster.png" data-fallback="assets/img/home.webp" aria-label="Perch open with the music player and clock">
+                  <source src="assets/media/home.webm" type="video/webm">
+                  <source src="assets/media/home.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </figure>
+          <figure class="scr scr-visualizer" style="--cw:540;--ch:64;--vw:960;--fw:58;--rr:22">
+            <div class="scr-bar" aria-hidden="true"></div>
+            <div class="nclip">
+              <div class="nclip-in">
+                <video class="clip" data-clip="visualizer" autoplay muted loop playsinline preload="metadata" poster="assets/media/visualizer-poster.png" data-fallback="assets/img/closed-music.webp" aria-label="Closed notch with album artwork and a live audio visualizer">
+                  <source src="assets/media/visualizer.webm" type="video/webm">
+                  <source src="assets/media/visualizer.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </figure>
+        </div>
+      </article>
+
+      <!-- HUDs -->
+      <article class="feat feat-flip reveal" aria-labelledby="f-huds">
+        <div class="feat-copy">
+          <p class="feat-tag"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg>HUDs</p>
+          <h3 id="f-huds">Volume and brightness, redrawn.</h3>
+          <p>Replaces the system volume, brightness and keyboard backlight overlays with HUDs that live in the notch.</p>
+          <ul class="ticks">
+            <li>Six bar styles</li>
+            <li>Per-HUD rules for the lock screen and Focus</li>
+            <li>Brightness keys also work on external displays (DDC on Apple Silicon)</li>
+          </ul>
+        </div>
+        <div class="feat-media">
+          <figure class="scr scr-volume" style="--cw:954;--ch:64;--vw:1280;--fw:90;--rr:22">
+            <div class="scr-bar" aria-hidden="true"></div>
+            <div class="nclip">
+              <div class="nclip-in">
+                <video class="clip" data-clip="volume" autoplay muted loop playsinline preload="metadata" poster="assets/media/volume-poster.png" data-fallback="assets/img/hud-volume.webp" aria-label="Volume HUD in the notch">
+                  <source src="assets/media/volume.webm" type="video/webm">
+                  <source src="assets/media/volume.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </figure>
+          <figure class="scr scr-bright" style="--cw:954;--ch:64;--vw:954;--fw:90;--rr:22">
+            <div class="scr-bar" aria-hidden="true"></div>
+            <div class="nclip">
+              <div class="bhud" role="img" aria-label="Brightness HUD in the notch with a segmented bar at 45">
+                <svg class="bh-ic" aria-hidden="true"><use href="#i-sun"/></svg>
+                <span class="bh-right"><span class="bh-seg" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="bh-num">45</span></span>
+              </div>
+            </div>
+          </figure>
+        </div>
+      </article>
+
+      <!-- Live Activities -->
+      <article class="feat reveal" aria-labelledby="f-live">
+        <div class="feat-copy">
+          <p class="feat-tag"><svg class="ic" aria-hidden="true"><use href="#i-activity"/></svg>Live Activities</p>
+          <h3 id="f-live">What just happened, at a glance.</h3>
+          <p>Charging and unplugging with time remaining, low battery, Low Power Mode, Focus changes and track changes.</p>
+          <ul class="ticks">
+            <li>Bluetooth devices connect with their battery level</li>
+            <li>AirPods show left, right and case</li>
+            <li>Swipe sideways on the closed notch to cycle recent activities</li>
+          </ul>
+        </div>
+        <div class="feat-media">
+          <figure class="scr scr-charging" style="--cw:710;--ch:64;--vw:1280;--fw:74;--rr:22">
+            <div class="scr-bar" aria-hidden="true"></div>
+            <div class="nclip">
+              <div class="nclip-in">
+                <video class="clip" data-clip="charging" autoplay muted loop playsinline preload="metadata" poster="assets/media/charging-poster.png" data-fallback="assets/img/charging.webp" aria-label="Charging activity showing 76 percent and 38 minutes remaining">
+                  <source src="assets/media/charging.webm" type="video/webm">
+                  <source src="assets/media/charging.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </figure>
+          <figure class="scr scr-airpods" style="--cw:830;--ch:112;--vw:1280;--fw:82;--rr:30">
+            <div class="scr-bar" aria-hidden="true"></div>
+            <div class="nclip">
+              <div class="nclip-in">
+                <video class="clip" data-clip="airpods" autoplay muted loop playsinline preload="metadata" poster="assets/media/airpods-poster.png" data-fallback="assets/img/airpods.webp" aria-label="AirPods Pro connected with left, right and case battery levels">
+                  <source src="assets/media/airpods.webm" type="video/webm">
+                  <source src="assets/media/airpods.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </figure>
+        </div>
+      </article>
+
+      <!-- Notifications -->
+      <article class="feat feat-flip reveal" aria-labelledby="f-notif">
+        <div class="feat-copy">
+          <p class="feat-tag"><svg class="ic" aria-hidden="true"><use href="#i-bell"/></svg>Notifications</p>
+          <h3 id="f-notif">Codes you can copy in one click.</h3>
+          <p>Mirrors delivered notifications into the notch, from email apps or from apps you choose.</p>
+          <ul class="ticks">
+            <li>Bursts are grouped, not stacked</li>
+            <li>One-time codes get a <b>Copy</b> button</li>
+          </ul>
+        </div>
+        <div class="feat-media">
+          <figure class="scr scr-notification" style="--cw:750;--ch:184;--vw:1280;--fw:86;--rr:38;--minh:40cqw">
+            <div class="scr-bar" aria-hidden="true"></div>
+            <div class="nclip">
+              <div class="nclip-in">
+                <video class="clip" data-clip="notification" autoplay muted loop playsinline preload="metadata" poster="assets/media/notification-poster.png" data-fallback="assets/img/notification.webp" aria-label="Email notification in the notch with a Copy code button">
+                  <source src="assets/media/notification.webm" type="video/webm">
+                  <source src="assets/media/notification.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </figure>
+        </div>
+      </article>
+
+      <!-- Bento -->
+      <header class="sec-head sec-head-sm reveal">
+        <h2 class="h2-sm">And the rest of your day.</h2>
+      </header>
+      <div class="bento">
+        <article class="card card-cal reveal" aria-labelledby="b-cal">
+          <div class="card-copy">
+            <p class="feat-tag"><svg class="ic" aria-hidden="true"><use href="#i-cal"/></svg>Calendar &amp; Weather</p>
+            <h3 id="b-cal">Your day, one swipe down.</h3>
+            <p>A week strip with the day's events, or an agenda view. Meeting alerts with a Join button, time-to-leave, an optional hourly chime, and today's forecast from Open-Meteo.</p>
+          </div>
+          <figure class="card-shot">
+            <img src="assets/img/calendar.webp" width="2000" height="480" loading="lazy" decoding="async" alt="Calendar tab: a week strip, today's events with a Join button, and the weather">
+          </figure>
+        </article>
+
+        <article class="card card-lock reveal" aria-labelledby="b-lock">
+          <div class="lock-art" aria-hidden="true">
+            <span class="lk-date" data-clock-longdate>Thursday 1 October</span>
+            <span class="lk-time" data-clock-time>7:22</span>
+            <div class="lk-widgets">
+              <span class="lk-w lk-music"><span class="art art-xs"></span><span><b>Midnight Lanterns</b><small>The Paper Orchards</small></span></span>
+              <span class="lk-w"><svg><use href="#i-bolt"/></svg>82%</span>
+              <span class="lk-w"><svg><use href="#i-sun"/></svg>19°</span>
+              <span class="lk-w lk-ev"><i></i>Design review · 7:30</span>
+            </div>
+          </div>
+          <div class="card-copy">
+            <p class="feat-tag"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg>Lock Screen</p>
+            <h3 id="b-lock">Widgets on the lock screen.</h3>
+            <p>Now Playing, battery, weather, next event and Bluetooth. Can also show over the screensaver.</p>
+          </div>
+        </article>
+
+        <article class="card card-gest reveal" aria-labelledby="b-gest">
+          <div class="gest-art" aria-hidden="true">
+            <span class="g-notch"></span>
+            <span class="g-finger"></span>
+          </div>
+          <div class="card-copy">
+            <p class="feat-tag"><svg class="ic" aria-hidden="true"><use href="#i-hand"/></svg>Gestures</p>
+            <h3 id="b-gest">Swipe, don't click.</h3>
+            <ul class="gest-list">
+              <li><kbd>↓</kbd>Open the notch</li>
+              <li><kbd>↑</kbd>Dismiss an activity, or close</li>
+              <li><kbd>↔</kbd>Cycle activities, skip tracks, switch tabs</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="card card-shelf reveal" aria-labelledby="b-shelf">
+          <div class="shelf-art" aria-hidden="true">
+            <div class="sh-notch">
+              <span class="sh-file f1"><i>PDF</i><small>brief.pdf</small></span>
+              <span class="sh-file f2"><i>PNG</i><small>hero.png</small></span>
+              <span class="sh-file f3"><i>ZIP</i><small>build.zip</small></span>
+            </div>
+          </div>
+          <div class="card-copy">
+            <p class="feat-tag"><svg class="ic" aria-hidden="true"><use href="#i-tray"/></svg>Shelf</p>
+            <h3 id="b-shelf">A place to put things down.</h3>
+            <p>Drop files on the notch to hold them for later. Drag them back out, or double-click to open.</p>
+          </div>
+        </article>
+
+        <article class="card card-url reveal" aria-labelledby="b-url">
+          <div class="card-copy">
+            <p class="feat-tag"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg>URL scheme</p>
+            <h3 id="b-url">Scriptable.</h3>
+            <p>Drive it from Terminal, Shortcuts or any launcher.</p>
+          </div>
+          <pre class="mini-code"><code><span class="c-dim">$</span> open perch://open/calendar
+<span class="c-dim">$</span> open perch://settings/huds
+<span class="c-dim">$</span> open perch://close</code></pre>
+        </article>
+
+        <article class="card card-settings reveal" aria-labelledby="b-settings">
+          <div class="card-copy">
+            <p class="feat-tag"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg>Settings</p>
+            <h3 id="b-settings">Every detail, your call.</h3>
+            <p>A searchable, System Settings-style window. Choose which displays show the notch, or a simulated notch on displays without one. Set its size, and whether it hides in fullscreen apps, games, Mission Control and screen recordings.</p>
+            <p class="muted-sm">Also: launch at login and a menu bar icon.</p>
+          </div>
+          <figure class="card-shot settings-shot">
+            <img src="assets/img/settings.webp" width="2000" height="1320" loading="lazy" decoding="async" alt="Perch Settings window on the HUDs pane, with toggles for volume, brightness and keyboard backlight">
+          </figure>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- OPEN SOURCE -->
+  <section class="section os" id="open-source" aria-labelledby="os-title">
+    <div class="wrap">
+      <div class="os-grid">
+        <div class="os-copy reveal">
+          <p class="eyebrow">Open source</p>
+          <h2 id="os-title">Built in the open.<br><span class="muted">Free for good.</span></h2>
+          <p class="sec-sub">Perch is MIT-licensed and written in Swift and SwiftUI. Read every line, change what you don't like, ship it back.</p>
+          <div class="os-links">
+            <a class="btn btn-ghost" href="https://github.com/d4nuux/perch" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>View the repo</a>
+            <a class="btn btn-link" href="https://github.com/d4nuux/perch/issues" rel="noopener">Report an issue <svg class="ic ic-xs" aria-hidden="true"><use href="#i-ext"/></svg></a>
+          </div>
+        </div>
+        <ul class="os-tiles" role="list">
+          <li class="tile reveal"><svg class="ic" aria-hidden="true"><use href="#i-scale"/></svg><b>MIT license</b><span>Use it, fork it, ship it.</span></li>
+          <li class="tile reveal"><svg class="ic" aria-hidden="true"><use href="#i-swift"/></svg><b>Swift &amp; SwiftUI</b><span>Native, no web views.</span></li>
+          <li class="tile reveal"><svg class="ic" aria-hidden="true"><use href="#i-eye-off"/></svg><b>No telemetry</b><span>No analytics, no tracking.</span></li>
+          <li class="tile reveal"><svg class="ic" aria-hidden="true"><use href="#i-user-off"/></svg><b>No account</b><span>Nothing to sign up for.</span></li>
+        </ul>
+      </div>
+
+      <div class="contrib reveal">
+        <h3>Contribute</h3>
+        <ol class="steps">
+          <li><span class="step-n">1</span><div><b>Fork</b><p>Fork <a href="https://github.com/d4nuux/perch" rel="noopener">d4nuux/perch</a> and clone it.</p></div></li>
+          <li><span class="step-n">2</span><div><b>Build</b><p><code>./build.sh --run</code> builds and launches it from <code>./build</code>.</p></div></li>
+          <li><span class="step-n">3</span><div><b>Open a PR</b><p>Bug fixes, features and polish are all welcome. Start with an <a href="https://github.com/d4nuux/perch/issues" rel="noopener">issue</a> for bigger changes.</p></div></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSTALL -->
+  <section class="section install" id="install" aria-labelledby="install-title">
+    <div class="wrap">
+      <header class="sec-head reveal">
+        <p class="eyebrow">Install</p>
+        <h2 id="install-title">One command.</h2>
+        <p class="sec-sub">Perch is built from source with the Xcode Command Line Tools. The full Xcode app isn't needed.</p>
+      </header>
+
+      <div class="install-grid">
+        <div class="codecard reveal">
+          <div class="codecard-bar">
+            <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="codecard-title">Terminal</span>
+            <button class="copy-btn" type="button" data-copy-target="install-cmd" aria-label="Copy install commands">
+              <svg class="ic ic-xs" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span>
+            </button>
+          </div>
+<pre class="code"><code id="install-cmd">git clone https://github.com/d4nuux/perch.git
+cd perch
+./build.sh --install</code></pre>
+          <div class="codecard-foot">
+            <p><code>--install</code> builds, copies Perch to <code>/Applications</code> and launches it. Use <code>./build.sh</code> to just build, or <code>--run</code> to launch from <code>./build</code>.</p>
+          </div>
+        </div>
+
+        <div class="req reveal">
+          <h3>Requirements</h3>
+          <ul class="req-list">
+            <li><b>macOS 14 Sonoma</b> or later <span class="muted">(live visualizer needs 14.4+)</span></li>
+            <li><b>Apple Silicon or Intel.</b> Displays without a notch can show a simulated one.</li>
+            <li><b>Xcode Command Line Tools</b> <code>xcode-select --install</code></li>
+          </ul>
+          <div class="note">
+            <b>Optional: stable signing.</b>
+            <p>macOS ties permissions to the code signature, and ad-hoc builds lose them on every rebuild. Create a self-signed code-signing certificate named <code>NotchApp Local Signing</code> once and <code>build.sh</code> uses it. <a href="https://github.com/d4nuux/perch#optional-a-stable-signing-identity" rel="noopener">Steps in the README</a>.</p>
+          </div>
+          <p class="muted-sm">Perch asks for each permission only when a feature needs it. Settings › Permissions shows the status of each.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section faq" id="faq" aria-labelledby="faq-title">
+    <div class="wrap wrap-narrow">
+      <header class="sec-head reveal">
+        <p class="eyebrow">FAQ</p>
+        <h2 id="faq-title">Straight answers.</h2>
+      </header>
+      <div class="faq-list">
+        <details class="reveal">
+          <summary>Is Perch free?</summary>
+          <p>Yes. It's MIT-licensed open source. No paid tier, no account, no telemetry.</p>
+        </details>
+        <details class="reveal">
+          <summary>Does it use private APIs?</summary>
+          <p>Yes. MediaRemote for system-wide Now Playing, SkyLight for lock-screen widgets, and DisplayServices / CoreBrightness for built-in display and keyboard backlight brightness. Each one is loaded at runtime. If a symbol is missing after a macOS update, that feature turns itself off and the rest of the app keeps working.</p>
+        </details>
+        <details class="reveal">
+          <summary>Why isn't it on the App Store?</summary>
+          <p>Because of those private frameworks. The App Store doesn't allow them, so Perch is built from source instead.</p>
+        </details>
+        <details class="reveal">
+          <summary>My Mac doesn't have a notch. Does it work?</summary>
+          <p>Yes. Displays without a notch can show a simulated one, and you can choose which displays show it.</p>
+        </details>
+        <details class="reveal">
+          <summary>Which macOS versions are supported?</summary>
+          <p>macOS 14 Sonoma or later, on Apple Silicon or Intel. The live audio visualizer needs macOS 14.4+.</p>
+        </details>
+        <details class="reveal">
+          <summary>Does the visualizer record my audio?</summary>
+          <p>No. It uses the System Audio Recording permission to read audio levels only. Nothing is recorded to disk.</p>
+        </details>
+        <details class="reveal">
+          <summary>Why do my permissions reset after every rebuild?</summary>
+          <p>Ad-hoc signatures change on every build. Set up the optional <code>NotchApp Local Signing</code> certificate and permissions survive rebuilds.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="final reveal" aria-labelledby="final-title">
+    <div class="wrap final-inner">
+      <img src="assets/img/icon.png" width="96" height="96" alt="Perch app icon" loading="lazy">
+      <h2 id="final-title">Give your notch something to do.</h2>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#install"><svg class="ic" aria-hidden="true"><use href="#i-arrow"/></svg>Build from source</a>
+        <a class="btn btn-ghost" href="https://github.com/d4nuux/perch" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>d4nuux/perch</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <div class="foot-brand">
+      <img src="assets/img/favicon-64.png" alt="" width="24" height="24" loading="lazy">
+      <span><b>Perch</b> · MIT License</span>
+    </div>
+    <ul class="foot-links">
+      <li><a href="https://github.com/d4nuux/perch" rel="noopener">GitHub</a></li>
+      <li><a href="https://github.com/d4nuux/perch/issues" rel="noopener">Issues</a></li>
+      <li><a href="https://github.com/d4nuux/perch/blob/HEAD/LICENSE" rel="noopener">License</a></li>
+    </ul>
+    <p class="foot-legal">Perch is an independent project and is not affiliated with or endorsed by Apple Inc. Mac, MacBook, macOS and AirPods are trademarks of Apple Inc.</p>
+  </div>
+</footer>
+</body>
+</html>
