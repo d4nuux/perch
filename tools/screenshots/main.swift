@@ -202,6 +202,141 @@ func notch() -> some View {
 let wide = CGSize(width: 1000, height: 240)
 let strip = CGSize(width: 900, height: 96)
 
+// MARK: Clips (perchshots --clips <framesdir>): PNG frame sequences on pure black for the website.
+// Frames are captured in real time (SwiftUI animations and TimelineViews run on the wall clock),
+// held in memory, then written as <framesdir>/<name>/0000.png… for tools/screenshots/clips.sh.
+
+/// Notch on pure black, no desktop: the clip blends into a black page section.
+func onBlack(_ player: NowPlaying) -> some View {
+    ZStack(alignment: .top) {
+        Color.black
+        NotchView()
+            .environmentObject(model).environmentObject(player).environmentObject(shelf).environmentObject(calendar)
+            .environmentObject(DisplaySettings.shared).environmentObject(screen).environmentObject(battery)
+            .environmentObject(AppSettings.shared)
+    }
+}
+
+/// Records `seconds` of frames at `fps`. `step(t)` runs before each frame (t in seconds).
+/// `order` maps the captured frames to the written sequence (ping-pong, rotation for posters).
+func record<V: View>(_ dir: URL, _ name: String, _ size: CGSize, seconds: Double, fps: Double = 30,
+                     settle: Double = 1.2, step: (Double) -> Void = { _ in },
+                     order: ([NSBitmapImageRep]) -> [NSBitmapImageRep] = { $0 }, _ v: V) {
+    let h = NSHostingController(rootView: v.frame(width: size.width, height: size.height).environment(\.colorScheme, .dark))
+    h.sizingOptions = []
+    let w = KeyWindow(contentViewController: h)
+    w.styleMask = [.borderless]
+    w.appearance = NSAppearance(named: .darkAqua)
+    w.backgroundColor = .black
+    w.setContentSize(size); w.setFrameOrigin(NSPoint(x: -9000, y: -9000)); w.makeKeyAndOrderFront(nil)
+    pump(settle)
+    let view = w.contentView!
+    var frames: [NSBitmapImageRep] = []
+    let n = Int(seconds * fps)
+    let t0 = Date()
+    var late = 0.0
+    for i in 0..<n {
+        let t = Double(i) / fps
+        step(t)
+        let target = t0.addingTimeInterval(t)
+        late = max(late, -target.timeIntervalSinceNow)
+        RunLoop.main.run(until: target)
+        let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)!
+        view.cacheDisplay(in: view.bounds, to: rep)
+        frames.append(rep)
+    }
+    w.orderOut(nil)
+    let d = dir.appendingPathComponent(name)
+    try? FileManager.default.removeItem(at: d)
+    try! FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+    for (i, rep) in order(frames).enumerated() {
+        try! rep.representation(using: .png, properties: [:])!.write(to: d.appendingPathComponent(String(format: "%04d.png", i)))
+    }
+    print("clip", name, frames[0].pixelsWide, "x", frames[0].pixelsHigh, order(frames).count, "frames, max lag",
+          String(format: "%.0fms", late * 1000))
+}
+
+/// Forward then backward (without repeating the end frames): seamless for motion with no direction.
+func pingPong(_ f: [NSBitmapImageRep]) -> [NSBitmapImageRep] { f + f.dropFirst().dropLast().reversed() }
+/// Start the loop at `at` seconds (so frame 0, the poster, shows the activity, not an empty notch).
+func rotated(_ at: Double, fps: Double = 30) -> ([NSBitmapImageRep]) -> [NSBitmapImageRep] {
+    { f in let k = Int(at * fps) % f.count; return Array(f[k...] + f[..<k]) }
+}
+
+if args.count > 2, args[1] == "--clips" {
+    let dir = URL(fileURLWithPath: args[2])
+    let only = args.count > 3 ? Set(args[3].split(separator: ",").map(String.init)) : nil
+    func want(_ n: String) -> Bool { only?.contains(n) ?? true }
+    let idle = NowPlaying(probe: MediaRemoteSource.State())
+    let closedSize = CGSize(width: 480, height: 72)
+    let activitySize = CGSize(width: 640, height: 72)
+    fakeBattery(82)
+
+    // Closed notch, music playing: synthetic visualizer (2 s forward + reverse = ~4 s loop).
+    model.isExpanded = false
+    if want("visualizer") {
+        record(dir, "visualizer", closedSize, seconds: 2.0, order: pingPong, onBlack(np))
+    }
+
+    // Volume HUD: level eases up and back down; one cosine period = seamless.
+    HUDSettings.shared.showLabel = false
+    HUDSettings.shared.showPercentage = true
+    HUDSettings.shared.linkStyles = false
+    HUDSettings.shared.volumeStyle = .gradient
+    if want("volume") {
+        let s = HUDLevel(kind: .volume); s.level = 0.25
+        model.present(LiveActivity(key: HUDKind.volume.key, extraWidth: HUDLayout.extraWidth(settings: HUDSettings.shared)) {
+            HUDLeading(state: s)
+        } trailing: { HUDTrailing(state: s) }, duration: nil)
+        record(dir, "volume", activitySize, seconds: 3.0, step: { t in
+            let v = 0.25 + 0.6 * (1 - cos(2 * .pi * t / 3.0)) / 2
+            s.level = (v * 16).rounded() / 16 // key-press steps, like the real volume keys
+        }, onBlack(idle))
+        model.dismissActivity(key: HUDKind.volume.key)
+        pump(0.8)
+    }
+
+    // Activities: appear, hold, close, empty, then loop; rotated so frame 0 shows the activity.
+    func activityClip(_ name: String, _ a: LiveActivity, size: CGSize, seconds: Double = 3.6, hold: Double = 2.4) {
+        guard want(name) else { return }
+        var shown = false, gone = false
+        record(dir, name, size, seconds: seconds, step: { t in
+            if !shown, t >= 0.1 { shown = true; model.present(a, duration: nil) }
+            if !gone, t >= 0.1 + hold { gone = true; model.dismissActivity(key: a.key) }
+        }, order: rotated(1.0), onBlack(idle))
+        model.dismissActivity(key: a.key)
+        pump(0.8)
+    }
+    activityClip("charging", ActivityViews.charging(level: 76, minutesToFull: 38, hidePercent: false), size: activitySize)
+    let pods = BluetoothMonitor.Device(address: "00-00-00-00-00-01", name: "AirPods Pro", kind: .airpodsPro, battery: nil,
+                                       buds: BluetoothMonitor.Buds(left: 84, right: 79, chargingCase: 62))
+    activityClip("airpods", ActivityViews.bluetooth(pods, connected: true), size: activitySize)
+    let otp = NotificationItem(record: NotificationRecord(recID: 2, bundleID: "it.bloop.airmail2", title: "Lumen Bank",
+                                                          subtitle: "Your sign-in code",
+                                                          body: "Your verification code is 482913. It expires in 10 minutes.",
+                                                          delivered: Date()), detectCodes: true)
+    activityClip("notification", NotificationViews.activity(.single(otp), expanded: false, locked: false, redact: false,
+                                                            actions: NotificationActions()),
+                 size: CGSize(width: 640, height: 130))
+
+    // Expanded Home, music playing. Rate 4 so the seek bar visibly advances (one 4 s step per second).
+    if want("home") {
+        var s2 = st
+        s2.rate = 4; s2.elapsed = 62; s2.timestamp = Date()
+        let fast = NowPlaying(probe: s2)
+        model.tab = .home
+        model.isExpanded = true
+        // Re-pin the fake battery every frame: the live monitor would otherwise show this Mac's real level.
+        fakeBattery(82)
+        record(dir, "home", CGSize(width: 680, height: 190), seconds: 5.0, settle: 2.5,
+               step: { _ in fakeBattery(82) }, onBlack(fast))
+        model.isExpanded = false
+    }
+
+    UserDefaults.standard.removePersistentDomain(forName: "perchshots")
+    exit(0)
+}
+
 // a. Expanded, Home tab.
 fakeBattery(82)
 model.tab = .home
